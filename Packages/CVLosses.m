@@ -39,14 +39,14 @@ Updated$Losses = "2018-09-21";
 (* ::Subsubsection:: *)
 (*功能块 1*)
 SAD[{i1_Image, i2_Image}] := Total[Abs@ImageData[i1 - i2], Infinity];
-SADLayer := SADLayer = NetGraph[{
-	"x-y" -> ThreadingLayer[Subtract],
+SADLayer := SADLayer = NetChain[{
+	"x-y" -> NetGraph[
+		{ThreadingLayer[Subtract]},
+		{{NetPort["Target"], NetPort["Input"]} -> 1}
+	],
 	"abs" -> ElementwiseLayer[Abs],
 	"sum" -> SummationLayer[]
-}, {
-	{NetPort["Target"], NetPort["Input"]}
-		-> "x-y" -> "abs" -> "sum"
-}];
+}]
 
 PSNR[{i1_Image, i2_Image}] := 10 * Log[10, 1 / Mean@Flatten@ImageData[(i1 - i2)^2]];
 PSNRLayer := PSNRLayer = NetChain[{
@@ -84,5 +84,5 @@ SSIM[img1_Image, img2_Image, OptionsPattern[]] := Module[
 SetAttributes[
 	{ },
 	{Protected, ReadProtected}
-]
+];
 End[]

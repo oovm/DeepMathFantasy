@@ -1,4 +1,3 @@
-
 Servent$MXNet::usage = "";
 Geass$MXNet::usage = "";
 
@@ -6,18 +5,18 @@ Geass$MXNet::usage = "";
 (*功能块 1*)
 Servent$MXNet[pathJ_, pathP_] := Block[
 	{symbol, params},
-	symbol = MXSymbolFromJSON@File[pathJ];
-	params = MXModelLoadParameters[pathP];
+	symbol = MXNetLink`MXSymbolFromJSON@File[pathJ];
+	params = MXNetLink`MXModelLoadParameters[pathP];
 	<|
 		"Framework" -> {"MXNet", Import[pathJ][[-1, -1, -1, -1, -1]]},
-		"Graph" -> MXSymbolToJSON@symbol,
-		"Nodes" -> Length@MXSymbolToJSON[symbol]["nodes"],
+		"Graph" -> MXNetLink`MXSymbolToJSON@symbol,
+		"Nodes" -> Length@MXNetLink`MXSymbolToJSON[symbol]["nodes"],
 		"Put" -> {"Image", "Colorful", "ImageSize"},
 		"Get" -> "Image",
 		"<<" -> "data",
-		">>" -> First@MXSymbolOutputs@symbol,
-		"Weight" -> NDArrayGetRawArray /@ params["ArgumentArrays"],
-		"Auxilliary" -> NDArrayGetRawArray /@ params["AuxilliaryArrays"],
+		">>" -> First@MXNetLink`MXSymbolOutputs@symbol,
+		"Weight" -> MXNetLink`NDArrayGetRawArray /@ params["ArgumentArrays"],
+		"Auxilliary" -> MXNetLink`NDArrayGetRawArray /@ params["AuxilliaryArrays"],
 		"Fixed" -> <||>
 	|>
 ];
@@ -33,8 +32,8 @@ Geass$MXNet[dm_Association, OptionsPattern[]] := Block[
 	{exe, device, port},
 	device = NeuralNetworks`Private`ParseContext @OptionValue[TargetDevice];
 	exe = NeuralNetworks`Private`ToNetExecutor[
-		NetPlan[<|
-			"Symbol" -> MXSymbolFromJSON@dm["Graph"],
+		NeuralNetworks`NetPlan[<|
+			"Symbol" -> MXNetLink`MXSymbolFromJSON@dm["Graph"],
 			"WeightArrays" -> dm["Weight"],
 			"FixedArrays" -> dm["Fixed"],
 			"BatchedArrayDims" -> <|dm["<<"] -> {BatchSize, Sequence @@ Dimensions[#]}|>,
@@ -53,8 +52,8 @@ Geass$MXNet[dm_Association, OptionsPattern[]] := Block[
 	];
 	port = ToExpression@StringDelete[ToString[exe["Arrays", "Inputs", "Input"]], {"NDArray[", "]"}];
 	MXNetLink`NDArray`PackagePrivate`mxWritePackedArrayToNDArrayChecked[#, port];
-	NetExecutorForward[exe, False];
-	exe["Arrays", "Outputs", "Output"] // NDArrayGetFlat
+	NeuralNetworks`NetExecutorForward[exe, False];
+	exe["Arrays", "Outputs", "Output"] // MXNetLink`NDArrayGetFlat
 ]&;
 
 

@@ -22,7 +22,8 @@
 (*这里应该填这个函数的介绍*)
 (* ::Section:: *)
 (*函数说明*)
-StackWatch::usage = "这里应该填这个函数的说明,如果要换行用\"\\r\"\r就像这样";
+StackWatch::usage = "";
+StackView::usage = "";
 (* ::Section:: *)
 (*程序包正体*)
 (* ::Subsection::Closed:: *)
@@ -65,13 +66,59 @@ StackWatchStyle[Hold[att_, log__]] := Module[
 
 (* ::Subsubsection:: *)
 (*功能块 2*)
-ExampleFunction[2] = "我就是个示例函数,什么功能都没有";
-
+SetAttributes[StackView, HoldAllComplete]
+StackView[expr_] := Module[
+	{steps = {}, stack = {}, pre, post},
+	pre[e_] := (stack = {steps, stack};steps = {});
+	post[e_, r_] := (
+		steps = First@stack ~ Join ~ {{e, steps, HoldForm[r]}};
+		stack = stack[[2]]
+	);
+	SetAttributes[post, HoldAllComplete];
+	TraceScan[pre, expr, ___, post];
+	DynamicModule[
+		{focus, show, subStep, enter, exit},
+		focus = steps;
+		subStep[{e_, {}, _}, _] := {Null, e, Style["inert", {Italic, Small}]};
+		subStep[{e_, _, r_}, p_] := {
+			Button[Style["show", Small], enter[p]], e,
+			Style[Row[{"-> ", r}], Small]
+		};
+		enter[{p_}] := PrependTo[focus, focus[[1, 2, p]]];
+		exit[] := focus = Drop[focus, 1];
+		show[{e_, s_, r_}] := Column[{Grid[
+			{
+				{"Expression", Column@Reverse@focus[[All, 1]]},
+				{
+					Column[{"Trace",
+						focus /. {{_} :> Sequence[], _ :> Button["Back", exit[], ImageSize -> Automatic]}
+					}],
+					Grid[MapIndexed[subStep, s], Alignment -> Left]
+				},
+				{"Result", Column@focus[[All, 3]]},
+				{"Steps", Length@Flatten@steps}
+			}, Background -> {{LightCyan}},
+			Alignment -> Left, Frame -> All
+		]}];
+		Dynamic@show@focus[[1]]
+	]
+];
+(* ::Subsubsection:: *)
+(*功能块 2*)
+SetAttributes[StackToFile, HoldFirst];
+StackToFile[expr_, filename_String, timeout_ : 60] := With[
+	{file = OpenWrite[filename]}, Echo[timeout, "Timeout: "];
+	Echo[FileNameJoin[{Directory[], filename}], "File: "];
+	Echo[ToString[Hold[expr], InputForm], "Expresion"];
+	TimeConstrained[TraceScan[WriteLine[file, StringTake[ToString[#, InputForm], {10, -2}]]&, expr], timeout];
+	Close[file];
+	File[FileNameJoin[{Directory[], filename}]]
+];
 
 (* ::Subsection::Closed:: *)
 (*附加设置*)
 SetAttributes[
-	{StackWatch},
+	{StackWatch, StackView, StackToFile},
 	{Protected, ReadProtected}
 ];
 End[]

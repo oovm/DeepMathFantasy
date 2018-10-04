@@ -15,3 +15,7 @@
 *.wmlf
 *.onnx
 *.wlnet
+
+# Python 测试
+Test/Python/*
+!Test/Python/*.py

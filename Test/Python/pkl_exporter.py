@@ -21,7 +21,7 @@ testDict = {
 	0: None,
 	1: [1, 2, 3, 4],
 	2: ('true', 'false'),
-	3: {'yes': True, 'no': False},
+	3: {'yes': True, 'no': False}
 }
 pkl.dump(testDict, f)
 pkl2wxf('objs.pkl')

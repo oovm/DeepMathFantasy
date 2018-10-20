@@ -24,4 +24,5 @@ testDict = {
 	3: {'yes': True, 'no': False}
 }
 pkl.dump(testDict, f)
+f.close()
 pkl2wxf('objs.pkl')

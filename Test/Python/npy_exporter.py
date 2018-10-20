@@ -10,5 +10,5 @@ def npy2wxf(path):
 	wxf.export(data, path + '.wxf', target_format='wxf')
 
 
-npy.save('image_mean.npy', random.rand(1, 3, 32, 32))
-npy2wxf('image_mean.npy')
+npy.save('4d_array.npy', random.rand(1, 3, 32, 32))
+npy2wxf('4d_array.npy')

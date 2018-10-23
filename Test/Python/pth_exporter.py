@@ -2,11 +2,12 @@
 # coding=utf-8
 import torch
 import wolframclient.serializers as wxf
-from collections import OrderedDict
 
-#params=torch.load('checkpoint.pth', map_location=torch.device('cpu'))
-#print(params)
 
-x = torch.tensor([[1, 2, 3], [4, 5, 6]])
-print(x)
-wxf.export(x, 'tensor.wxf', target_format='wxf')
+def pth2wxf(path):
+	pth = torch.load(path, map_location=torch.device('cpu'))
+	npy = {key: value.numpy() for key, value in pth.items()}
+	wxf.export(npy, path + '.wxf', target_format='wxf')
+
+
+pth2wxf('checkpoint.pth')

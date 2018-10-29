@@ -20,7 +20,7 @@ ResSampleV2[c_Integer] := Block[
 		BN[], Ramp,
 		CN[c, 3, 1, 1]
 	};
-	NetMerge[{CN[c, 3, 0, 2], res}, Plus, Expand -> All]
+	NetMerge[{CN[c, 1, 0, 2], res}, Plus, Expand -> All]
 ];
 ResBasicV2[c_Integer] := Block[
 	{res},
@@ -43,5 +43,5 @@ ResBlockV2[c_Integer, n_Integer, head_ : True] := Block[
 SetAttributes[
 	{ },
 	{Protected, ReadProtected}
-]
+];
 End[]

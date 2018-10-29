@@ -54,6 +54,24 @@ GluonCVImport[name_String, dir_String : True] := Block[
 
 
 
+
+
+defFromFile[file_, sfx_String] := Block[
+	{def},
+	def = AssociateTo[NeuralNetworks`Private`ReadDefinitionFile[file, "GluonCV`"], "Suffix" -> sfx];
+	NeuralNetworks`DefineLayer[FileBaseName[file], def]
+];
+
+$LoadingLayers := Block[
+	{layers},
+	Needs["NeuralNetworks`"];
+	layers = FileNames["*", FileNameJoin[{$GluonCVDirectory, "Kernel", "Layers"}]];
+	Quiet@Table[defFromFile[file, "Layer"], {file, layers}];
+	True
+];
+
+(*TODO:Add Installer*)
+
 (* ::Subsubsection:: *)
 (*功能块 2*)
 ExampleFunction[2] = "我就是个示例函数,什么功能都没有";

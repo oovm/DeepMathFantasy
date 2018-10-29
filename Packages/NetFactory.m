@@ -22,7 +22,7 @@
 (*这里应该填这个函数的介绍*)
 (* ::Section:: *)
 (*函数说明*)
-ExampleFunction::usage = "这里应该填这个函数的说明,如果要换行用\"\\r\"\r就像这样";
+NetFactory::usage = "";
 (* ::Section:: *)
 (*程序包正体*)
 (* ::Subsection::Closed:: *)
@@ -44,15 +44,6 @@ NetFactory[name_String, paras___] := Switch[
 ];
 
 
-
-VggBlock[c_Integer,u_Integer:1,m_String:""]:=Block[
-	{},
-	If[Or[c<1,u<1],Return@GluonCV`helper`paraErr];
-	Switch[m,
-		"BN",VggBasicBN[c,u],
-		___,VggBasic[c,u]
-	]
-];
 
 
 (* ::Subsection::Closed:: *)

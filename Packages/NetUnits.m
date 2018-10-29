@@ -3,34 +3,29 @@
 (*NetLayers*)
 (* ::Subchapter:: *)
 (*Introduce*)
-$LoadingLayers::usage = "help.";
-GluonCV`PixelShuffleLayer::usage = "help.";
+VggBlock::usage = "";
 (* ::Subchapter:: *)
 (*Main*)
 (* ::Subsection:: *)
 (*Settings*)
-Begin["`Units`"];
+Begin["`Factory`"];
 (* ::Subsection::Closed:: *)
 (*主体代码*)
 Version$NetUnits = "V1.0";
 Updated$NetUnits = "2018-10-19";
 (* ::Subsubsection:: *)
 (*defFromFile*)
-defFromFile[file_, sfx_String] := Block[
-	{def},
-	def = AssociateTo[NeuralNetworks`Private`ReadDefinitionFile[file, "GluonCV`"], "Suffix" -> sfx];
-	NeuralNetworks`DefineLayer[FileBaseName[file], def]
-];
 
-$LoadingLayers := Block[
-	{layers},
-	Needs["NeuralNetworks`"];
-	layers = FileNames["*", FileNameJoin[{$GluonCVDirectory, "Kernel", "Layers"}]];
-	Quiet@Table[defFromFile[file, "Layer"], {file, layers}];
-	True
-];
 
-(*TODO:Add Installer*)
+
+VggBlock[c_Integer,u_Integer:1,m_String:""]:=Block[
+	{},
+	If[Or[c<1,u<1],Return@GluonCV`helper`paraErr];
+	Switch[m,
+		"BN",VggBasicBN[c,u],
+		___,VggBasic[c,u]
+	]
+];
 
 
 (* ::Subsection:: *)

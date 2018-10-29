@@ -49,7 +49,7 @@ netMergeIdentity[nodes_List, op_] := NetGraph[
 ];
 Options[NetMerge] = {Identity -> False, Expand -> False};
 NetMerge[nodes_, opMap_, OptionsPattern[]] := Block[
-	{op,net, isExpand = OptionValue[Expand]},
+	{op, net, isExpand = OptionValue[Expand]},
 	op = Switch[opMap,
 		Plus || Total, ThreadingLayer[Plus],
 		Times || Product, ThreadingLayer[Times],
@@ -85,7 +85,12 @@ ImageEncoder[size_ : 224, c_ : "RGB"] := NetEncoder[{
 (*LayerInformation*)
 LayerInformation[conv_ConvolutionLayer] := <|
 	"Name" -> "Convolution",
-	"Array" -> {"Weights", "Biases"},
+	"Array" -> If[
+		NetExtract[conv, "Biases"] === None,
+		{"Weights"},
+		{"Weights", "Biases"}
+	],
+	"Color" -> RGBColor[{51, 85, 136} / 255],
 	"Option" -> {
 		"Kernel" -> NetExtract[conv, "KernelSize"],
 		"Stride" -> NetExtract[conv, "Stride"],
@@ -99,6 +104,7 @@ LayerInformation[conv_ConvolutionLayer] := <|
 |>;
 LayerInformation[bn_BatchNormalizationLayer] := <|
 	"Name" -> "BatchNorm",
+	"Color" -> RGBColor[{51, 85, 68} / 255],
 	"Array" -> {"Beta", "Gamma"},
 	"Option" -> {
 		"Momentum" -> NetExtract[bn, "Momentum"],
@@ -111,14 +117,71 @@ LayerInformation[bn_BatchNormalizationLayer] := <|
 		"Output" -> NetExtract[bn, "Output"]
 	}
 |>;
-pplot = First@# <> ": " <> StringRiffle[Last@#, "*"]&;
 getActivationFunction[f_] := Switch[f,
 	Ramp , "ReLU",
 	"RectifiedLinearUnit"[#1]&, "ReLU",
 	LogisticSigmoid, "Sigmoid",
 	___, "Function"
-]
+];
 
+LayerInformation[f_ElementwiseLayer] := <|
+	"Name" -> "Activation",
+	"Color" -> RGBColor[{75, 27, 22} / 255],
+	"Array" -> {getActivationFunction[f]},
+	"Option" -> If[
+		getActivationFunction[f] === "Function",
+		f, {}
+	],
+	"Tensor" -> {
+		"Input" -> NetExtract[f, "Input"],
+		"Output" -> NetExtract[f, "Output"]
+	}
+|>;
+
+
+layerGridNormal[info_Association] := Block[
+	{pLen, fill, array, head, option, tensor},
+	pLen = Max[StringLength /@ Flatten[{First /@ info["Tensor"], First /@ info["Option"]}]] + 2;
+	fill = Row[{Style[StringPadRight[First@# <> ":", pLen], Bold], StringRiffle[Last@#, "×"]}]&;
+	array = Item[Style[#, Black, 16, FontFamily -> "Comic Sans MS"], Background -> Lighter[Gray, 0.7]]&;
+	head = Flatten@{
+		Item[Style[info["Name"], White, 24], Background -> info["Color"]],
+		array /@ info["Array"]
+	};
+	option = PadRight[{Column[fill /@ info["Option"]]}, Length@head, SpanFromLeft];
+	tensor = PadRight[{Column[fill /@ info["Tensor"]]}, Length@head, SpanFromLeft];
+	Grid[{head, option, tensor}, Frame -> All, Alignment -> Left]
+];
+layerGridConvolutionBiases[info_Association] := Block[
+	{oFill, tFill, head, option, tensor},
+	oFill = StringRiffle[# /. info["Option"], "×"]&;
+	tFill = StringRiffle[# /. info["Tensor"], "×"]&;
+	head = {
+		Item[Style["Convolution", White, 24], Background -> RGBColor[{1 / 5, 1 / 3, 8 / 15}]],
+		Item[Style["Weights", Black, 16, FontFamily -> "Comic Sans MS"], Background -> Lighter[Gray, 0.7]],
+		Item[Style["Biases", Black, 16, FontFamily -> "Comic Sans MS"], Background -> Lighter[Gray, 0.7]]
+	};
+	option = {Column[{
+		Row[{Style["Kernel:  ", Bold], oFill@"Kernel"}],
+		Row[{Style["Padding: ", Bold], oFill@"Padding"}]
+	}], Column[{
+		Row[{Style["Stride:   ", Bold], oFill@"Stride"}],
+		Row[{Style["Dilation: ", Bold], oFill@"Dilation"}]
+	}], SpanFromLeft};
+	tensor = {Column[{
+		Row[{Style["Input:   ", Bold], tFill@"Input"}],
+		Row[{Style["Output:  ", Bold], tFill@"Output"}]
+	}], SpanFromLeft, SpanFromLeft};
+	Grid[{head, option, tensor}, Frame -> All, Alignment -> Left]
+];
+layerGridConvolution[info_Association] := If[
+	Length@info["Array"] == 2,
+	layerGridConvolutionBiases[info],
+	layerGridNormal[info]
+];
+
+
+(*Graph[{Property[1, VertexSize -> 0.1,VertexShape ->Rasterize[layerGridConvolutionBiases[info],ImageResolution -> 200]]}, {1 -> 1}]*)
 
 
 

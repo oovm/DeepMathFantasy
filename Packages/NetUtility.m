@@ -16,7 +16,7 @@ ClassificationInformation::usage = "";
 (*Main*)
 (* ::Subsection:: *)
 (*Settings*)
-Begin["`Tools`"];
+Begin["`Utility`"];
 Version$Tools = "V0.4";
 Updated$Tools = "2018-10-20";
 (* ::Subsection::Closed:: *)

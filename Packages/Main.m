@@ -1,13 +1,13 @@
-GluonCV::usage = "";
-$GluonCVDirectory::usage = "";
-$GluonCVData::usage = "";
+DeepMath::usage = "";
+$DeepMathDirectory::usage = "";
+$DeepMathData::usage = "";
 Begin["`Private`"];
-$GluonCVDirectory = DirectoryName[FindFile["GluonCV`Kernel`"], 2];
-$GluonCVData = FileNameJoin[{$UserBaseDirectory, "ApplicationData", "GluonCV"}];
+$DeepMathDirectory = DirectoryName[FindFile["DeepMath`Kernel`"], 2];
+$DeepMathData = FileNameJoin[{$UserBaseDirectory, "ApplicationData", "DeepMath"}];
 
 
-GluonCV = <|
-	"Helper"->TrueQ@GluonCV`helper
+DeepMath = <|
+	"Helper"->TrueQ@DeepMath`helper
 	(*"Layers"->TrueQ@$LoadingLayers*)
 |>;
 End[]

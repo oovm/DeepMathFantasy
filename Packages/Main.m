@@ -1,25 +1,13 @@
-DeepMathFantasy::usage = "";
-$pyPATH::usage = "";
-$pySession::usage = "";
+GluonCV::usage = "";
+$GluonCVDirectory::usage = "";
+$GluonCVData::usage = "";
 Begin["`Private`"];
-$pyPATH = FileNameJoin[{$HomeDirectory, "Anaconda3", "python.exe"}];
-$pySession := $pySession = StartExternalSession[<|
-	"System" -> "Python",
-	"Executable" -> $pyPATH,
-	"ReturnType" -> "Expression"
-|>];
-(*PackageLoadPacletDependency["NeuralNetworks`"];*)
-(*PackageLoadPacletDependency["MXNetLink`"];*)
-(*PackageExtendContextPath[*)
-(*{*)
-(*"Developer`",*)
-(*"MXNetLink`",*)
-(*"NeuralNetworks`",*)
-(*"GeneralUtilities`"*)
-(*}*)
-(*];*)
-(*SetAttributes[*)
-(*{ },*)
-(*{Protected, ReadProtected}*)
-(*];*)
+$GluonCVDirectory = DirectoryName[FindFile["GluonCV`Kernel`"], 2];
+$GluonCVData = FileNameJoin[{$UserBaseDirectory, "ApplicationData", "GluonCV"}];
+
+
+GluonCV = <|
+	"Helper"->TrueQ@GluonCV`helper
+	(*"Layers"->TrueQ@$LoadingLayers*)
+|>;
 End[]

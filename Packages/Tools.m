@@ -6,7 +6,8 @@
 NetChain2Graph::usage = "Transform a NetChain to NetGraph.";
 ImageEncoder::usage = "";
 LayerRemoveShape::usage = "Try to remove the shape of the layer";
-LayerInformation::usage = "Try to get info of the layer";
+LayerInformation::usage = "Try to get basic information of the layer";
+NetMerge::usage = "Merge net nodes";
 MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
 ClassificationBenchmark::usage = "";
@@ -34,6 +35,37 @@ NetChain2Graph[net_NetChain] := Block[
 
 
 (* ::Subsubsection:: *)
+(*NetMerge*)
+netMerge[nodes_List, op_] := NetGraph[
+	Append[nodes, op],
+	{NetPort["Input"] -> Range@Length[nodes] -> (Length[nodes] + 1)}
+];
+netMergeIdentity[nodes_List, op_] := NetGraph[
+	Append[nodes, op],
+	Prepend[
+		Table[NetPort["Input"] -> i -> Length[nodes] + 1, {i, Length[nodes]}],
+		NetPort["Input"] -> Length[nodes] + 1
+	]
+];
+Options[NetMerge] = {Identity -> True, Expand -> False};
+NetMerge[nodes_, op_, OptionsPattern[]] := Block[
+	{net},
+	If[ListQ@nodes,
+		net = If[
+			True@OptionValue[Identity],
+			netMergeIdentity[nodes, op],
+			netMerge[nodes, op]
+		],
+		net = netMergeIdentity[{nodes}, op]
+	];
+	Switch[OptionValue[Expand],
+		False, NetFlatten[net],
+		True, NetFlatten[net],
+		___, NetFlatten[NetChain2Graph /@ net]
+	]
+];
+
+(* ::Subsubsection:: *)
 (*ImageNetEncoder*)
 ImageEncoder[size_ : 224, c_ : "RGB"] := NetEncoder[{
 	"Image", size,
@@ -45,40 +77,40 @@ ImageEncoder[size_ : 224, c_ : "RGB"] := NetEncoder[{
 
 (* ::Subsubsection:: *)
 (*LayerInformation*)
-LayerInformation[conv_ConvolutionLayer]:=<|
-	"Name"->"Convolution",
-	"Array"->{"Weights","Biases"},
-	"Option"->{
-		"Kernel"->NetExtract[conv,"KernelSize"],
-		"Stride"->NetExtract[conv,"Stride"],
-		"Padding"->NetExtract[conv,"PaddingSize"],
-		"Dilation"->NetExtract[conv,"Dilation"]
+LayerInformation[conv_ConvolutionLayer] := <|
+	"Name" -> "Convolution",
+	"Array" -> {"Weights", "Biases"},
+	"Option" -> {
+		"Kernel" -> NetExtract[conv, "KernelSize"],
+		"Stride" -> NetExtract[conv, "Stride"],
+		"Padding" -> NetExtract[conv, "PaddingSize"],
+		"Dilation" -> NetExtract[conv, "Dilation"]
 	},
-	"Tensor"->{
-		"Input"->NetExtract[conv,"Input"],
-		"Output"->NetExtract[conv,"Output"]
+	"Tensor" -> {
+		"Input" -> NetExtract[conv, "Input"],
+		"Output" -> NetExtract[conv, "Output"]
 	}
 |>;
-LayerInformation[bn_BatchNormalizationLayer]:=<|
-	"Name"->"BatchNorm",
-	"Array"->{"Beta","Gamma"},
-	"Option"->{
-		"Momentum"->NetExtract[bn,"Momentum"],
-		"Epsilon"->"10^"<>ToString@Round@Log10@NetExtract[bn,"Epsilon"]
+LayerInformation[bn_BatchNormalizationLayer] := <|
+	"Name" -> "BatchNorm",
+	"Array" -> {"Beta", "Gamma"},
+	"Option" -> {
+		"Momentum" -> NetExtract[bn, "Momentum"],
+		"Epsilon" -> "10^" <> ToString@Round@Log10@NetExtract[bn, "Epsilon"]
 	(*"MovingMean"\[Rule]toVec@NetExtract[bn,"MovingMean"],
 	"MovingVariance"->toVec@NetExtract[bn,"MovingVariance"]*)
 	},
-	"Tensor"->{
-		"Input"->NetExtract[bn,"Input"],
-		"Output"->NetExtract[bn,"Output"]
+	"Tensor" -> {
+		"Input" -> NetExtract[bn, "Input"],
+		"Output" -> NetExtract[bn, "Output"]
 	}
 |>;
-pplot=First@#<>": "<>StringRiffle[Last@#,"*"]&;
-getActivationFunction[f_]:=Switch[f,
-	Ramp ,"ReLU",
-	"RectifiedLinearUnit"[#1]&,"ReLU",
-	LogisticSigmoid,"Sigmoid",
-	___,"Function"
+pplot = First@# <> ": " <> StringRiffle[Last@#, "*"]&;
+getActivationFunction[f_] := Switch[f,
+	Ramp , "ReLU",
+	"RectifiedLinearUnit"[#1]&, "ReLU",
+	LogisticSigmoid, "Sigmoid",
+	___, "Function"
 ]
 
 
@@ -181,7 +213,7 @@ ClassificationInformation[net_] := {
 	"ModelSize" -> First@UnitConvert[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
 	"Nodes" -> NetInformation[net, "LayersCount"]
 };
-Options[]={};
+Options[] = {};
 ClassificationBenchmark[net_, data_List, top_List : {1}] := Block[
 	{$now, ans, time, pLoss, layer, TCE, getTop, right},
 	$now = Now;

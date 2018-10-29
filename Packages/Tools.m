@@ -5,7 +5,8 @@
 (*Introduce*)
 NetChain2Graph::usage = "Transform a NetChain to NetGraph.";
 ImageEncoder::usage = "";
-RemoveLayerShape::usage = "Try to remove the shape of the layer";
+LayerRemoveShape::usage = "Try to remove the shape of the layer";
+LayerInformation::usage = "Try to get info of the layer";
 MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
 ClassificationBenchmark::usage = "";
@@ -43,8 +44,49 @@ ImageEncoder[size_ : 224, c_ : "RGB"] := NetEncoder[{
 
 
 (* ::Subsubsection:: *)
+(*LayerInformation*)
+LayerInformation[conv_ConvolutionLayer]:=<|
+	"Name"->"Convolution",
+	"Array"->{"Weights","Biases"},
+	"Option"->{
+		"Kernel"->NetExtract[conv,"KernelSize"],
+		"Stride"->NetExtract[conv,"Stride"],
+		"Padding"->NetExtract[conv,"PaddingSize"],
+		"Dilation"->NetExtract[conv,"Dilation"]
+	},
+	"Tensor"->{
+		"Input"->NetExtract[conv,"Input"],
+		"Output"->NetExtract[conv,"Output"]
+	}
+|>;
+LayerInformation[bn_BatchNormalizationLayer]:=<|
+	"Name"->"BatchNorm",
+	"Array"->{"Beta","Gamma"},
+	"Option"->{
+		"Momentum"->NetExtract[bn,"Momentum"],
+		"Epsilon"->"10^"<>ToString@Round@Log10@NetExtract[bn,"Epsilon"]
+	(*"MovingMean"\[Rule]toVec@NetExtract[bn,"MovingMean"],
+	"MovingVariance"->toVec@NetExtract[bn,"MovingVariance"]*)
+	},
+	"Tensor"->{
+		"Input"->NetExtract[bn,"Input"],
+		"Output"->NetExtract[bn,"Output"]
+	}
+|>;
+pplot=First@#<>": "<>StringRiffle[Last@#,"*"]&;
+getActivationFunction[f_]:=Switch[f,
+	Ramp ,"ReLU",
+	"RectifiedLinearUnit"[#1]&,"ReLU",
+	LogisticSigmoid,"Sigmoid",
+	___,"Function"
+]
+
+
+
+
+(* ::Subsubsection:: *)
 (*RemoveLayerShape*)
-RemoveLayerShape[layer_ConvolutionLayer] := With[
+LayerRemoveShape[layer_ConvolutionLayer] := With[
 	{
 		k = NetExtract[layer, "OutputChannels"],
 		kernelSize = NetExtract[layer, "KernelSize"] ,
@@ -60,7 +102,7 @@ RemoveLayerShape[layer_ConvolutionLayer] := With[
 		"Dilation" -> dilation
 	]
 ];
-RemoveLayerShape[layer_PoolingLayer] := With[
+LayerRemoveShape[layer_PoolingLayer] := With[
 	{
 		f = NetExtract[layer, "Function"],
 		kernelSize = NetExtract[layer, "KernelSize"] ,
@@ -71,12 +113,12 @@ RemoveLayerShape[layer_PoolingLayer] := With[
 		"PaddingSize" -> padding, "Function" -> f
 	]
 ];
-RemoveLayerShape[layer_ElementwiseLayer] := With[
+LayerRemoveShape[layer_ElementwiseLayer] := With[
 	{f = NetExtract[layer, "Function"]},
 	ElementwiseLayer[f]
 ];
-RemoveLayerShape[layer_SoftmaxLayer] := Nothing;
-RemoveLayerShape[layer_FlattenLayer] := Nothing;
+LayerRemoveShape[layer_SoftmaxLayer] := Nothing;
+LayerRemoveShape[layer_FlattenLayer] := Nothing;
 
 
 (* ::Subsubsection:: *)

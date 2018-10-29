@@ -28,7 +28,7 @@ ExampleFunction::usage = "这里应该填这个函数的说明,如果要换行�
 (* ::Subsection::Closed:: *)
 (*主设置*)
 ExNumber::usage = "程序包的说明,这里抄一遍";
-Begin["`NetFactory`"];
+Begin["`Factory`"];
 (* ::Subsection::Closed:: *)
 (*主体代码*)
 Version$NetFactory = "V1.0";

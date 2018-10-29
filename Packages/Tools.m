@@ -30,7 +30,7 @@ NetChain2Graph[net_NetChain] := Block[
 		Rule @@@ Partition[Range@Length@nets, 2, 1],
 		"Input" -> NetExtract[net, "Input"],
 		"Output" -> NetExtract[net, "Output"]
-	];
+	]
 ];
 
 
@@ -47,19 +47,25 @@ netMergeIdentity[nodes_List, op_] := NetGraph[
 		NetPort["Input"] -> Length[nodes] + 1
 	]
 ];
-Options[NetMerge] = {Identity -> True, Expand -> False};
-NetMerge[nodes_, op_, OptionsPattern[]] := Block[
-	{net},
+Options[NetMerge] = {Identity -> False, Expand -> False};
+NetMerge[nodes_, opMap_, OptionsPattern[]] := Block[
+	{op,net, isExpand = OptionValue[Expand]},
+	op = Switch[opMap,
+		Plus || Total, ThreadingLayer[Plus],
+		Times || Product, ThreadingLayer[Times],
+		Join || Catenate, CatenateLayer[],
+		___, opMap
+	];
 	If[ListQ@nodes,
 		net = If[
-			True@OptionValue[Identity],
+			TrueQ@OptionValue[Identity],
 			netMergeIdentity[nodes, op],
 			netMerge[nodes, op]
 		],
-		net = netMergeIdentity[{nodes}, op]
+		Return@NetMerge[{nodes}, op, Identity -> True, Expand -> isExpand]
 	];
-	Switch[OptionValue[Expand],
-		False, NetFlatten[net],
+	Switch[isExpand,
+		False, net,
 		True, NetFlatten[net],
 		___, NetFlatten[NetChain2Graph /@ net]
 	]
@@ -213,7 +219,7 @@ ClassificationInformation[net_] := {
 	"ModelSize" -> First@UnitConvert[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
 	"Nodes" -> NetInformation[net, "LayersCount"]
 };
-Options[] = {};
+Options[ClassificationBenchmark] = {};
 ClassificationBenchmark[net_, data_List, top_List : {1}] := Block[
 	{$now, ans, time, pLoss, layer, TCE, getTop, right},
 	$now = Now;

@@ -36,6 +36,15 @@ NetChain2Graph[net_NetChain] := Block[
 
 (* ::Subsubsection:: *)
 (*NetMerge*)
+$opMap = <|
+	Plus -> ThreadingLayer[Plus],
+	Total -> TotalLayer[],
+	Sum -> TotalLayer[],
+	Times -> ThreadingLayer[Times],
+	Product -> ThreadingLayer[Times],
+	Join -> CatenateLayer[],
+	Catenate -> CatenateLayer[]
+|>;
 netMerge[nodes_List, op_] := NetGraph[
 	Append[nodes, op],
 	{NetPort["Input"] -> Range@Length[nodes] -> (Length[nodes] + 1)}
@@ -50,12 +59,7 @@ netMergeIdentity[nodes_List, op_] := NetGraph[
 Options[NetMerge] = {Identity -> False, Expand -> False};
 NetMerge[nodes_, opMap_, OptionsPattern[]] := Block[
 	{op, net, isExpand = OptionValue[Expand]},
-	op = Switch[opMap,
-		Plus || Total, ThreadingLayer[Plus],
-		Times || Product, ThreadingLayer[Times],
-		Join || Catenate, CatenateLayer[],
-		___, opMap
-	];
+	op = Lookup[$opMap, opMap, opMap];
 	If[ListQ@nodes,
 		net = If[
 			TrueQ@OptionValue[Identity],

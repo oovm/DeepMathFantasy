@@ -7,6 +7,22 @@ resnetFactory::usage = "";
 Begin["`Main`"];
 (* ::Subsubsection:: *)
 (*resnet*)
+
+
+
+alexFactory
+
+
+
+
+
+
+
+
+
+
+
+
 resnetFactory[___] = "我就是个示例函数,什么功能都没有";
 
 

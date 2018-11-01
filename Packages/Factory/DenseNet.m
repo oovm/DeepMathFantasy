@@ -12,12 +12,7 @@ CN[c_, k_, p_ : 1, s_ : 1] := ConvolutionLayer[
 	c, {k, k}, "Biases" -> None,
 	"PaddingSize" -> p, "Stride" -> s
 ];
-DenseResample[c_Integer] := NetChain[{
-	BN[], ElementwiseLayer["ReLU"],
-	CN[c, 1, 0, 1],
-	PoolingLayer[{2, 2}, "Stride" -> 2, "Function" -> Mean]
-}];
-DenseBasic[c_Integer] := Block[
+denseBasic[c_Integer] := Block[
 	{res},
 	res = NetChain@{
 		BN[], ElementwiseLayer["ReLU"],
@@ -27,15 +22,37 @@ DenseBasic[c_Integer] := Block[
 	};
 	NetMerge[res, Join, Expand -> All]
 ];
+denseResample[c_Integer] := NetChain[{
+	BN[], ElementwiseLayer["ReLU"],
+	CN[c, 1, 0, 1],
+	PoolingLayer[{2, 2}, "Stride" -> 2, "Function" -> Mean]
+}];
 denseBlock[c_Integer, n_Integer, head_ : True] := Block[
 	{chain},
-	chain = ConstantArray[DenseBasic[c], n];
-	If[head, PrependTo[chain, DenseResample[c]]];
+	chain = ConstantArray[denseBasic[c], n];
+	If[head, PrependTo[chain, denseResample[c]]];
 	NetChain@chain
 ];
 
 (*TODO:PRelu for SR*)
-
+CN2[c_, k_, p_ : 1, s_ : 1] := ConvolutionLayer[
+	c, {k, k}, "PaddingSize" -> p, "Stride" -> s
+];
+denseBasicSR[c_Integer] := Block[
+	{res},
+	res = NetChain@{
+		ParametricRampLayer[],
+		CN2[c, 1, 0, 1],
+		ParametricRampLayer[],
+		CN2[c, 3, 1, 1]
+	};
+	NetMerge[res, Join, Expand -> All]
+];
+denseResampleSR[c_Integer] := NetChain[{
+	BN[], ElementwiseLayer["ReLU"],
+	CN[c, 1, 0, 1],
+	PoolingLayer[{2, 2}, "Stride" -> 2, "Function" -> Mean]
+}];
 
 
 

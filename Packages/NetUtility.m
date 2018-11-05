@@ -57,7 +57,8 @@ netMergeIdentity[nodes_List, op_] := NetGraph[
 	]
 ];
 Options[NetMerge] = {Identity -> False, Expand -> False};
-NetMerge[nodes_, opMap_, OptionsPattern[]] := Block[
+NetMerge[nodes_, opt : OptionsPattern[]] := NetMerge[nodes, Plus, opt];
+NetMerge[nodes_, opMap_, opt : OptionsPattern[]] := Block[
 	{op, net, isExpand = OptionValue[Expand]},
 	op = Lookup[$opMap, opMap, opMap];
 	If[ListQ@nodes,
@@ -70,8 +71,8 @@ NetMerge[nodes_, opMap_, OptionsPattern[]] := Block[
 	];
 	Switch[isExpand,
 		False, net,
-		True, NetFlatten[net],
-		___, NetFlatten[NetChain2Graph /@ net]
+		True , NetFlatten[net],
+		_    , NetFlatten[NetChain2Graph /@ net]
 	]
 ];
 

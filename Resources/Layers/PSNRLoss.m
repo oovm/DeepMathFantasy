@@ -18,4 +18,4 @@ Writer: Function[
 	MeanLossImplementation["L2"];
 ]
 
-Suffix: "LossLayer"
+Suffix: "Layer"

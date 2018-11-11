@@ -1,6 +1,6 @@
 (* ::Package:: *)
 (* ::Title:: *)
-(*NetFactory(NetFactory)*)
+(*NetForge(NetForge)*)
 (* ::Subchapter:: *)
 (*程序包介绍*)
 (* ::Text:: *)
@@ -22,7 +22,7 @@
 (*这里应该填这个函数的介绍*)
 (* ::Section:: *)
 (*函数说明*)
-NetFactory::usage = "";
+NetForge::usage = "";
 (* ::Section:: *)
 (*程序包正体*)
 (* ::Subsection::Closed:: *)
@@ -31,16 +31,17 @@ ExNumber::usage = "程序包的说明,这里抄一遍";
 Begin["`Factory`"];
 (* ::Subsection::Closed:: *)
 (*主体代码*)
-Version$NetFactory = "V1.0";
-Updated$NetFactory = "2018-10-24";
+Version$NetForge = "V1.0";
+Updated$NetForge = "2018-10-24";
 (* ::Subsubsection:: *)
 (*功能块 1*)
-NetFactory[name_String, paras___] := Switch[
+NetForge[name_String, paras___] := Switch[
 	StringDelete[ToLowerCase@name, {WhitespaceCharacter,"-"}],
-	"resnet", resnetFactory[paras],
-	"resnetv2", resnetv2Factory[paras],
-	"resnext", resnextFactory[paras],
-	_, NetFactoryList[]
+	"resnet", resnetForge[paras],
+	"resnetv2", resnetv2Forge[paras],
+	"resnext", resnextForge[paras],
+	"vgg",vggForge[paras]
+	_, NetForgeList[]
 ];
 
 
@@ -51,5 +52,5 @@ NetFactory[name_String, paras___] := Switch[
 SetAttributes[
 	{ },
 	{Protected, ReadProtected}
-]
+];
 End[]

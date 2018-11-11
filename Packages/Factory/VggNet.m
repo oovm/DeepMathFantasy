@@ -3,6 +3,7 @@
 (*Defines*)
 VggBasicBN::usage = "";
 VggBasic::usage = "";
+VggForge::usage = "";
 (* ::Subsection::Closed:: *)
 (*Main*)
 Begin["`VggNet`"];
@@ -26,22 +27,14 @@ VggBasicBN[c_Integer, u_Integer] := Block[
 	NetChain@Flatten[{ConstantArray[unit, u], pool}]
 ];
 
-VggBlock[c_Integer, u_Integer : 1, m_String : ""] := Block[
-	{},
-	If[Or[c < 1, u < 1], Return@GluonCV`helper`paraErr];
-	Switch[m,
-		"BN", VggBasicBN[c, u],
-		___, VggBasic[c, u]
-	]
-];
-
 (*
 VGG number
-19: 2 4 8 12 19-3=16
-16: 2 4 7 10 16-3=13
-13: 2 4 6 8  13-3=10
-11: 1 2 4 6  11-3=8
+19 : {0, 2, 4, 8, 12, 19 - 3}
+16 : {0, 2, 4, 7, 10, 16 - 3}
+13 : {0, 2, 4, 6, 8,  13 - 3}
+11 : {0, 1, 2, 4, 6,  11 - 3}
 *)
+(*
 Vgg11 := Defer[NetChain][{N,
 	Defer[VggBlock][64, 1, "BN"], N,
 	Defer[VggBlock][128, 1, "BN"], N,
@@ -50,9 +43,8 @@ Vgg11 := Defer[NetChain][{N,
 	Defer[VggBlock][512, 2, "BN"], N,
 	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
 	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-	1000, N
+	class, N
 }] // PrintLine;
-
 Vgg13 := Defer[NetChain][{N,
 	Defer[VggBlock][64, 2, "BN"], N,
 	Defer[VggBlock][128, 2, "BN"], N,
@@ -61,10 +53,19 @@ Vgg13 := Defer[NetChain][{N,
 	Defer[VggBlock][512, 2, "BN"], N,
 	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
 	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-	1000, N
+	class, N
 }] // PrintLine;
-
 Vgg16 := Defer[NetChain][{N,
+	Defer[VggBlock][64, 2, "BN"], N,
+	Defer[VggBlock][128, 3, "BN"], N,
+	Defer[VggBlock][256, 3, "BN"], N,
+	Defer[VggBlock][512, 3, "BN"], N,
+	Defer[VggBlock][512, 3, "BN"], N,
+	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
+	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
+	class, N
+}] // PrintLine;
+Vgg19 := Defer[NetChain][{N,
 	Defer[VggBlock][64, 2, "BN"], N,
 	Defer[VggBlock][128, 2, "BN"], N,
 	Defer[VggBlock][256, 4, "BN"], N,
@@ -72,27 +73,48 @@ Vgg16 := Defer[NetChain][{N,
 	Defer[VggBlock][512, 4, "BN"], N,
 	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
 	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-	1000, N
+	class, N
 }] // PrintLine;
+*)
 
-
-Vgg19 := Defer[NetChain][{N,
-	Defer[VggBlock][64, 2, "BN"], N,
-	Defer[VggBlock][128, 2, "BN"], N,
-	Defer[VggBlock][256, 3, "BN"], N,
-	Defer[VggBlock][512, 3, "BN"], N,
-	Defer[VggBlock][512, 3, "BN"], N,
-	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-	{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-	1000, N
-}] // PrintLine;
-
+Options[VggForge] = {
+	"Layers" -> {1, 1, 1, 1, 1},
+	"Channels" -> {64, 128, 256, 512, 512},
+	"Classes" -> 1000,
+	"Layout" -> "BN",
+	"Name" -> True
+};
+VggForge[ops : OptionsPattern[]] := Module[
+	{layers, layout, channels, classes},
+	layers = Switch[
+		ToLowerCase@OptionValue["Name"],
+		"Vgg11", {1, 1, 2, 2, 2},
+		"Vgg13", {2, 2, 2, 2, 2},
+		"Vgg16", {2, 2, 3, 3, 3},
+		"Vgg19", {2, 2, 4, 4, 4},
+		True, OptionValue["Layers"],
+		_, (*Todo:FailHelper*)
+		Return@"no such model"
+	];
+	{layout, channels, classes} = OptionValue[{"Layout", "Channels", "Classes"}];
+	(*Todo:FinalCheck*)
+	
+	
+	
+	Defer[NetChain][Flatten@{N,
+		Inner[{Defer[VggBlock][#1, #2, layout], N}&, channels, layers, List],
+		{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
+		{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
+		classes, N,
+		Defer[SoftmaxLayer][], N
+	}] // PrintLine;
+];
 
 
 (* ::Subsection:: *)
 (*Additional*)
 SetAttributes[
-	{ },
+	{VggBasic, VggBasicBN, VggForge},
 	{Protected, ReadProtected}
 ];
 End[]

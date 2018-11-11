@@ -7,6 +7,7 @@ NetChain2Graph::usage = "Transform a NetChain to NetGraph.";
 ImageEncoder::usage = "";
 LayerRemoveShape::usage = "Try to remove the shape of the layer";
 LayerInformation::usage = "Try to get basic information of the layer";
+PrintLine::usage = "Print Expression With Line Broken";
 NetMerge::usage = "Merge net nodes";
 MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
@@ -21,6 +22,17 @@ Version$Tools = "V0.4";
 Updated$Tools = "2018-10-20";
 (* ::Subsection::Closed:: *)
 (*Codes*)
+(* ::Subsubsection:: *)
+(*NetChain2Graph*)
+PrintLine[expr_, s_ : N] := Block[
+	{box, token},
+	token = If[StringQ@s , "\"" ~~ s ~~ "\"", ToString@s]
+	box = ToBoxes[expr] //. {{a___, token, ",", b___} :> {a, "\[IndentingNewLine]", b}};
+	box = box /. {{a___, ",", token} :> {a, "\[IndentingNewLine]"}};
+	CellPrint@Cell[BoxData@box, "Output"]
+];
+
+
 (* ::Subsubsection:: *)
 (*NetChain2Graph*)
 NetChain2Graph[other___] := other;

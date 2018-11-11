@@ -10,7 +10,7 @@ VggBlock::usage = "";
 (*Settings*)
 Begin["`Factory`"];
 (* ::Subsection::Closed:: *)
-(*主体代码*)
+(*Codes*)
 Version$NetUnits = "V1.0";
 Updated$NetUnits = "2018-10-19";
 (* ::Subsubsection:: *)

@@ -36,11 +36,10 @@ Updated$NetForge = "2018-10-24";
 (* ::Subsubsection:: *)
 (*功能块 1*)
 NetForge[name_String, paras___] := Switch[
-	StringDelete[ToLowerCase@name, {WhitespaceCharacter,"-"}],
+	StringDelete[ToLowerCase@name, {WhitespaceCharacter, "-"}],
 	"resnet", resnetForge[paras],
-	"resnetv2", resnetv2Forge[paras],
 	"resnext", resnextForge[paras],
-	"vgg",vggForge[paras]
+	"vgg", VggForge[paras],
 	_, NetForgeList[]
 ];
 

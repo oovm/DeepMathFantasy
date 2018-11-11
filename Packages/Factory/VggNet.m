@@ -1,5 +1,5 @@
 (* ::Package:: *)
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*Defines*)
 VggBasicBN::usage = "";
 VggBasic::usage = "";
@@ -82,17 +82,17 @@ Options[VggForge] = {
 	"Channels" -> {64, 128, 256, 512, 512},
 	"Classes" -> 1000,
 	"Layout" -> "BN",
-	"Name" -> True
+	"Name" -> "Auto"
 };
 VggForge[ops : OptionsPattern[]] := Module[
 	{layers, layout, channels, classes},
 	layers = Switch[
 		ToLowerCase@OptionValue["Name"],
-		"Vgg11", {1, 1, 2, 2, 2},
-		"Vgg13", {2, 2, 2, 2, 2},
-		"Vgg16", {2, 2, 3, 3, 3},
-		"Vgg19", {2, 2, 4, 4, 4},
-		True, OptionValue["Layers"],
+		"vgg11", {1, 1, 2, 2, 2},
+		"vgg13", {2, 2, 2, 2, 2},
+		"vgg16", {2, 2, 3, 3, 3},
+		"vgg19", {2, 2, 4, 4, 4},
+		"auto", OptionValue["Layers"],
 		_, (*Todo:FailHelper*)
 		Return@"no such model"
 	];
@@ -101,12 +101,11 @@ VggForge[ops : OptionsPattern[]] := Module[
 	
 	
 	
-	Defer[NetChain][Flatten@{N,
-		Inner[{Defer[VggBlock][#1, #2, layout], N}&, channels, layers, List],
+	Defer[NetChain][{N,
+		Sequence @@ Flatten@Inner[{Defer[VggBlock][#1, #2, layout], N}&, channels, layers, List],
 		{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
 		{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-		classes, N,
-		Defer[SoftmaxLayer][], N
+		classes, Defer[SoftmaxLayer][], N
 	}] // PrintLine;
 ];
 

@@ -17,7 +17,7 @@ ClassificationInformation::usage = "";
 (*Main*)
 (* ::Subsection:: *)
 (*Settings*)
-Begin["`Utility`"];
+Begin["`Tools`"];
 Version$Tools = "V0.4";
 Updated$Tools = "2018-10-20";
 (* ::Subsection::Closed:: *)
@@ -28,8 +28,8 @@ PrintLine[expr_, s_ : N] := Block[
 	{box, token},
 	token = If[StringQ@s , "\"" ~~ s ~~ "\"", ToString@s];
 	box = ToBoxes[expr] //. {{a___, token, ",", b___} :> {a, "\[IndentingNewLine]", b}};
-	box = box /. {{a___, ",", token} :> {a, "\[IndentingNewLine]"}};
-	CellPrint@Cell[BoxData@box, "Output"]
+	box = box //. {{a___, ",", token} :> {a, "\[IndentingNewLine]"}};
+	CellPrint@Cell[BoxData@box, "Output"];
 ];
 
 

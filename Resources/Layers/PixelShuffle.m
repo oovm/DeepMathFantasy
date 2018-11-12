@@ -11,6 +11,11 @@ Parameters:
 
 (*TODO: Final Check, output shape must integers*)
 
+(*TODO: New API in MXNet 1.3*)
+(*mxnet.symbol.depth_to_space*)
+(*mxnet.symbol.space_to_depth*)
+
+
 Writer: Function[
 	input = GetInput["Input", "Batchwise"];
 	index = SowNode["reshape", input, "shape" -> {0, -4, -1, #Scaled^2, 0, 0}];

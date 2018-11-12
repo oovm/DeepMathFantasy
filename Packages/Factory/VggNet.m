@@ -27,6 +27,46 @@ VggBasicBN[c_Integer, u_Integer] := Block[
 	NetChain@Flatten[{ConstantArray[unit, u], pool}]
 ];
 
+Options[VggForge] = {
+	"Layers" -> {1, 1, 1, 1, 1},
+	"Channels" -> {64, 128, 256, 512, 512},
+	"Classes" -> 1000,
+	"Layout" -> "BN",
+	"Name" -> "Auto",
+	Debug -> False
+};
+VggForge[ops : OptionsPattern[]] := Block[
+	{layers, layout, channels, classes, return},
+	layers = Switch[
+		ToLowerCase@OptionValue["Name"],
+		"vgg11", {1, 1, 2, 2, 2},
+		"vgg13", {2, 2, 2, 2, 2},
+		"vgg16", {2, 2, 3, 3, 3},
+		"vgg19", {2, 2, 4, 4, 4},
+		"auto", OptionValue["Layers"],
+		_, (*Todo:FailHelper*)
+		Return@"no such model"
+	];
+	{layout, channels, classes} = OptionValue[{"Layout", "Channels", "Classes"}];
+	(*Todo:FinalCheck*)
+	
+	
+	
+	return = Defer[NetChain][{N,
+		Sequence @@ Flatten@Inner[{Defer[VggBlock][#1, #2, layout], N}&, channels, layers, List],
+		Defer[{4096, Ramp, DropoutLayer[0.5]}], N,
+		Defer[{4096, Ramp, DropoutLayer[0.5]}], N,
+		classes, Defer[SoftmaxLayer][], N
+	}, N,
+		"Input" -> Defer[NetEncoder[{"Image", 224, "MeanImage" -> {0.5, 0.5, 0.5}}]], N,
+		"Output" -> Defer[NetDecoder][{"Class", Defer[Range][classes]}], N
+	];
+	If[TrueQ@OptionValue[Debug],
+		Return@return,
+		return // PrintLine
+	]
+];
+
 (*
 VGG number
 19 : {0, 2, 4, 8, 12, 19 - 3}
@@ -77,43 +117,10 @@ Vgg19 := Defer[NetChain][{N,
 }] // PrintLine;
 *)
 
-Options[VggForge] = {
-	"Layers" -> {1, 1, 1, 1, 1},
-	"Channels" -> {64, 128, 256, 512, 512},
-	"Classes" -> 1000,
-	"Layout" -> "BN",
-	"Name" -> "Auto"
-};
-VggForge[ops : OptionsPattern[]] := Module[
-	{layers, layout, channels, classes},
-	layers = Switch[
-		ToLowerCase@OptionValue["Name"],
-		"vgg11", {1, 1, 2, 2, 2},
-		"vgg13", {2, 2, 2, 2, 2},
-		"vgg16", {2, 2, 3, 3, 3},
-		"vgg19", {2, 2, 4, 4, 4},
-		"auto", OptionValue["Layers"],
-		_, (*Todo:FailHelper*)
-		Return@"no such model"
-	];
-	{layout, channels, classes} = OptionValue[{"Layout", "Channels", "Classes"}];
-	(*Todo:FinalCheck*)
-	
-	
-	
-	Defer[NetChain][{N,
-		Sequence @@ Flatten@Inner[{Defer[VggBlock][#1, #2, layout], N}&, channels, layers, List],
-		{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-		{4096, Ramp, Defer[DropoutLayer[0.5]]}, N,
-		classes, Defer[SoftmaxLayer][], N
-	}] // PrintLine;
-];
-
-
 (* ::Subsection:: *)
 (*Additional*)
 SetAttributes[
 	{VggBasic, VggBasicBN, VggForge},
-	{Protected, ReadProtected}
+	{ReadProtected}
 ];
 End[]

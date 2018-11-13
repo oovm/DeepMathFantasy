@@ -10,12 +10,16 @@ Parameters:
 
 AllowDynamicDimensions: True
 
-IsLoss: True
-
-(*TODO: Final Check, output shape must integers*)
-
 Writer: Function[
-	MeanLossImplementation["L2"];
+	input = GetInput["Input"];
+	target = GetInput["Target"];
+	loss = SowNode["elemwise_sub", {input, target}];
+	loss = SowNode["mean", SowSquare@loss];
+	loss = SowNode["log10", loss];
+	loss = SowNode["_mul_scalar", loss, "scalar" -> -10];
+	SetOutput["Loss", loss];
 ]
+
+IsLoss: True
 
 Suffix: "Layer"

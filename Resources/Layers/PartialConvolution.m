@@ -1,5 +1,5 @@
 Inputs:
-	$Input: InterleavingSwitchedT[$$Interleaving, $InputChannels, $$InputSize]
+	$Input: InterleavingSwitchedT[$$Interleaving, $$InputChannels, $$InputSize]
 	$InputMask: InterleavingSwitchedT[$$Interleaving, 1, $$InputSize]
 	
 Outputs:
@@ -7,11 +7,10 @@ Outputs:
 	$OutputMask: InterleavingSwitchedT[$$Interleaving, 1, $$OutputSize]
 
 Arrays:
-	$Weights: TensorT[{$OutputChannels, $InputChannels}, TensorT[$KernelSize]]
+	$Weights: TensorT[{$OutputChannels, $$InputChannels}, TensorT[$KernelSize]]
 	$Biases: Nullable[VectorT[$OutputChannels]]
 
 Parameters:
-	$InputChannels:		SizeT
 	$OutputChannels:	SizeT
 	$KernelSize:		ArbSizeListT[$$Dimensionality, SizeT, None]
 	$MaskFunction:		Defaulting[EnumT[{Mean, Sum}], Mean]
@@ -20,12 +19,13 @@ Parameters:
 	$Dilation:			ArbSizeListT[$$Dimensionality, PosIntegerT, 1]
 	$$Interleaving:		Defaulting[BooleanT, False]
 	$$Dimensionality:	NaturalT
+	$$InputChannels:	SizeT
 	$$InputSize:		SizeListT[$$Dimensionality]
 	$$OutputSize:		ComputedType[SizeListT[$$Dimensionality],
 		MaybeDyn @ ConvolutionShape[$$InputSize, $PaddingSize, $KernelSize, $Stride, $Dilation]
 	]
 
-(*ReshapeParams: {$$InputChannels, $$InputSize, $$OutputSize}*)
+ReshapeParams: {$$InputChannels, $$InputSize, $$OutputSize}
 
 MinArgCount: 0
 PosArgCount: 2
@@ -41,24 +41,25 @@ Writer: Function[
 	}];
 	image = SowNode["Convolution",
 		{norm, #Weights, Replace[#Biases, None -> Nothing]},
-		"num_filter" -> #OutputChannels,
 		"kernel" -> #KernelSize,
+		"num_filter" -> #OutputChannels,
 		"dilate" -> #Dilation,
 		"pad" -> #PaddingSize,
 		"stride" -> #Stride
 	];
-	mask = SowNode["repeat", mask, "repeats" -> #InputChannels, "axis" -> 1];
+	SetOutput["Output", image];
+	mask = SowNode["repeat", mask, "repeats" -> #$InputChannels, "axis" -> 1];
 	mask = SowNode["Convolution",
 		{mask, #Weights},
+		"no_bias"->True,
 		"num_filter" -> #OutputChannels,
 		"kernel" -> #KernelSize,
 		"dilate" -> #Dilation,
 		"pad" -> #PaddingSize,
 		"stride" -> #Stride
 	];
-	mask = SowNode["mean", mask, "axis" -> {2, 3}, "keepdims" -> True];
-	mask = SowNode["broadcast_greater", {mask, 0}];
-	SetOutput["Output", image];
+	mask = SowNode["sum", mask, "axis" -> 1, "keepdims" -> True];
+	mask = SowNode["broadcast_greater", {mask, SowZeroArray[{1}]}];
 	SetOutput["OutputMask", mask];
 ]
 

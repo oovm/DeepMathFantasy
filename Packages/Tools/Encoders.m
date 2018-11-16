@@ -88,7 +88,7 @@ Mean {0.4488, 0.4371, 0.4040}
 *)
 
 (* ::Subsection::Closed:: *)
-(*附加设置*)
+(*Additional*)
 SetAttributes[
 	{ },
 	{Protected, ReadProtected}

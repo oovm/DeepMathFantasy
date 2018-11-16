@@ -4,6 +4,7 @@
 TestReportAnalyze::usage = "";
 ClassifyDualAnalyze::usage = "";
 ClassifyProbabilitiesPlot::usage = "";
+ClassifyUncertaintyAnalyzeThenPlot::usage = "";
 (* ::Subsection::Closed:: *)
 (*Main*)
 Begin["`Benchmark`"];
@@ -23,8 +24,8 @@ TestReportAnalyze[obj_TestReport] := Block[
 
 (* ::Subsubsection:: *)
 ClassifyDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
-	{ans, tiny},
-	ans = <|
+	{attr, tiny},
+	attr = <|
 		"Count" -> Total /@ cm@"ConfusionFunction",
 		"TPRate" -> cm@"Recall",
 		"TNRate" -> cm@"Specificity",
@@ -32,8 +33,8 @@ ClassifyDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
 		"FNRate" -> cm@"FalseNegativeRate",
 		"F1Score" -> cm@"F1Score"
 	|>;
-	tiny = Sort@Keys@TakeSmallest[ans["F1Score"], UpTo[25]];
-	"Dual" -> Query[All, Key /@ tiny]@ans
+	tiny = Sort@Keys@TakeSmallest[attr["F1Score"], UpTo[25]];
+	"Dual" -> Query[All, Key /@ tiny]@attr
 ];
 
 ClassifyProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Block[
@@ -59,6 +60,46 @@ ClassifyProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Block[
 	];
 	Export["High Precision Classification Curve.png", plot, Background -> None];
 ];
+(*Histogram[
+	cm@"Probabilities", {0.05}, "LogCount",
+	ChartBaseStyle -> EdgeForm[Dotted], LabelingFunction -> Above,
+	PlotLabel -> Style["Expired", "Title", 14], PlotRange -> All, PlotRangePadding -> None
+]*)
+
+ClassifyUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
+	{thresholds, accuracies, rejections, pts, plot},
+	thresholds = Join[Range[0.25, 0.80, 0.05], Range[0.81, 0.99, 0.01], Range[0.991, 0.999, 0.001], Range[0.9991, 0.9999, 0.0001]];
+	{accuracies, rejections} = Transpose[cm[{"Accuracy", "RejectionRate"}, IndeterminateThreshold -> #]& /@ thresholds] /. r_Real :> Round[r, 0.0001];
+	pts = MapThread[
+		Callout[{#1, #2},
+			Column @ {
+				Row @ {"Accept = ", #2},
+				Row @ {"Rejecte = ", #1},
+				Row @ {"Uncertainty", " = ", #3}
+			}, CalloutMarker -> "CirclePoint", (*LabelStyle\[Rule]{12,Bold,Blue},*)LeaderSize -> 25, Appearance -> "CurvedLeader"
+		]&,
+		{rejections, accuracies, thresholds}
+	];
+	plot = ListLinePlot[pts,
+		PlotRange -> {{0, Max@rejections}, {Min@accuracies, 1}},
+		Filling -> Axis, ImageSize -> 900,
+		PlotTheme -> {"Monochrome", "FullAxes"},
+		FrameLabel -> Style[#, 20]& /@ {"Indeterminate Threshold", "Accuracy"},
+		GridLines -> Automatic, GridLinesStyle -> Directive[GrayLevel[0.5, 0.5], AbsoluteThickness@1, AbsoluteDashing@{1, 2}],
+	(*PlotMarkers\[Rule]Graphics[{EdgeForm[Directive[AbsoluteThickness[1.],RGBColor[0.34398,0.49112,0.89936]]],White,Disk[{0,0},Offset[2*{1.,1.},{0.,0.}]]}],*)
+		Epilog -> {
+			Text[Style["Accuracy Rejection Curve", "Title", 30, Black], Offset[{-325, + 30}, Scaled[{1, 0}]], {-1, 0}],
+			{Dashed, Line[{{0, Min@accuracies}, {Max@rejections, Max@accuracies}}]}
+		}
+	];
+	Export["Accuracy Rejection Curve.png", Show[plot, ImageSize -> 1200], Background -> None];
+	"Threshold" -> <|
+		"Uncertainty" -> thresholds,
+		"AcceptanceRate" -> accuracies,
+		"RejectionRate" -> rejections
+	|>
+];
+
 
 
 (* ::Subsection::Closed:: *)

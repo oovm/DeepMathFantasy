@@ -6,7 +6,7 @@ ClassifyTestReportAnalyze::usage = "";
 (*Main*)
 Begin["`Benchmark`"];
 (* ::Subsubsection:: *)
-(*ClassifyTestReport*)
+(*TestReport*)
 ClassifyTestReportAnalyze[obj_TestReport] := Block[
 	{attr},
 	attr = <|
@@ -20,7 +20,19 @@ ClassifyTestReportAnalyze[obj_TestReport] := Block[
 ];
 
 (* ::Subsubsection:: *)
-
+ClassifyDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
+	{ans},
+	ans = <|
+		"Count" -> Total /@ cm@"ConfusionFunction",
+		"TPRate" -> cm@"Recall",
+		"TNRate" -> cm@"Specificity",
+		"FPRate" -> cm@"FalsePositiveRate",
+		"FNRate" -> cm@"FalseNegativeRate",
+		"F1Score" -> cm@"F1Score"
+	|>;
+	tiny = Sort@Keys@TakeSmallest[ans["F1Score"], UpTo[25]]
+	"Dual" -> Query[All, Key /@ tiny]@ans
+];
 
 
 (* ::Subsection::Closed:: *)

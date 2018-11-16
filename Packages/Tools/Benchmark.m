@@ -6,6 +6,7 @@ ClassifyDualAnalyze::usage = "";
 ClassifyProbabilitiesPlot::usage = "";
 ClassifyUncertaintyAnalyzeThenPlot::usage = "";
 ClassifyConfusionAnalyzeThenPlot::usage = "";
+ClassifyWorstPlot::usage = "";
 (* ::Subsection::Closed:: *)
 (*Main*)
 Begin["`Benchmark`"];
@@ -111,6 +112,21 @@ ClassifyConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 		"ConfusionMatrix" -> Lookup[#, class]& /@ Lookup[cm["ConfusionFunction"], class]
 	|>
 ];
+
+
+ClassifyWorstPlot[cm_ClassifierMeasurementsObject] := Block[
+	{exp},
+	exp = Take[Flatten@cm[{"WorstClassifiedExamples", "LeastCertainExamples", "IndeterminateExamples"}], UpTo[100]];
+	(*
+		tags=Transpose[{First/@exp,Last/@exp,cm["ClassifierFunction"]/@First/@exp}]
+		Grid[Partition[#,4]&@(Labeled[#1,Column[{"   true:"<>ToString@#2,"predict:"<>ToString@#3}],Top]&@@@tags),Frame\[Rule]All]
+	*)
+	Rasterize@ImageCollage[exp[[All, 1]]]
+];
+
+
+
+
 
 (* ::Subsection::Closed:: *)
 (*Additional*)

@@ -5,6 +5,7 @@ TestReportAnalyze::usage = "";
 ClassifyDualAnalyze::usage = "";
 ClassifyProbabilitiesPlot::usage = "";
 ClassifyUncertaintyAnalyzeThenPlot::usage = "";
+ClassifyConfusionAnalyzeThenPlot::usage = "";
 (* ::Subsection::Closed:: *)
 (*Main*)
 Begin["`Benchmark`"];
@@ -100,7 +101,16 @@ ClassifyUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 	|>
 ];
 
-
+ClassifyConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
+	{class, img},
+	class = Sort@Take[Flatten[cm["TopConfusions" -> 100] /. Rule -> List] // DeleteDuplicates, UpTo[25]];
+	img = Magnify[Show[cm["ConfusionMatrixPlot" -> class], ImageSize -> 600], 2];
+	Export["ConfusionMatrix.png", img, Background -> None];
+	"Confusion" -> <|
+		"Classes" -> class,
+		"ConfusionMatrix" -> Lookup[#, class]& /@ Lookup[cm["ConfusionFunction"], class]
+	|>
+];
 
 (* ::Subsection::Closed:: *)
 (*Additional*)

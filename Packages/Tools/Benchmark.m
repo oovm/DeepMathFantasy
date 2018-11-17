@@ -5,6 +5,7 @@
 
 
 TestReportAnalyze::usage = "";
+NetAnalyze::usage = "";
 ClassifyDualAnalyze::usage = "";
 ClassifyProbabilitiesPlot::usage = "";
 ClassifyUncertaintyAnalyzeThenPlot::usage = "";
@@ -35,6 +36,13 @@ TestReportAnalyze[obj_TestReport] := Block[
 	"Test" -> attr /@ Association @@@ Values[obj["TestResults"]]
 ];
 
+
+NetAnalyze[net_] := "Net" -> <|
+	"Size" -> QuantityMagnitude[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
+	"Parameters" -> NetInformation[net, "ArraysTotalElementCount"],
+	"Layers" -> NetInformation[net, "LayerTypeCounts"],
+	"Nodes" -> NetInformation[net, "LayersCount"]
+|>;
 
 
 (* ::Subsubsection::Closed:: *)

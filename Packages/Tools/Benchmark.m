@@ -1,17 +1,28 @@
 (* ::Package:: *)
-(* ::Subsection::Closed:: *)
+
+(* ::Subsection:: *)
 (*Benchmark*)
+
+
 TestReportAnalyze::usage = "";
 ClassifyDualAnalyze::usage = "";
 ClassifyProbabilitiesPlot::usage = "";
 ClassifyUncertaintyAnalyzeThenPlot::usage = "";
 ClassifyConfusionAnalyzeThenPlot::usage = "";
 ClassifyWorstPlot::usage = "";
-(* ::Subsection::Closed:: *)
+
+
+(* ::Subsection:: *)
 (*Main*)
+
+
 Begin["`Benchmark`"];
-(* ::Subsubsection:: *)
+
+
+(* ::Subsubsection::Closed:: *)
 (*TestReport*)
+
+
 TestReportAnalyze[obj_TestReport] := Block[
 	{attr},
 	attr = <|
@@ -24,7 +35,12 @@ TestReportAnalyze[obj_TestReport] := Block[
 	"Test" -> attr /@ Association @@@ Values[obj["TestResults"]]
 ];
 
-(* ::Subsubsection:: *)
+
+
+(* ::Subsubsection::Closed:: *)
+(*ClassifyAnalyze*)
+
+
 ClassifyDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
 	{attr, tiny},
 	attr = <|
@@ -113,7 +129,6 @@ ClassifyConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 	|>
 ];
 
-
 ClassifyWorstPlot[cm_ClassifierMeasurementsObject] := Block[
 	{exp},
 	exp = Take[Flatten@cm[{"WorstClassifiedExamples", "LeastCertainExamples", "IndeterminateExamples"}], UpTo[100]];
@@ -125,11 +140,10 @@ ClassifyWorstPlot[cm_ClassifierMeasurementsObject] := Block[
 ];
 
 
-
-
-
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*Additional*)
+
+
 SetAttributes[
 	{ },
 	{Protected, ReadProtected}

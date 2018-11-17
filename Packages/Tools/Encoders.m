@@ -1,12 +1,22 @@
 (* ::Package:: *)
-(* ::Subsection::Closed:: *)
+
+(* ::Subsection:: *)
 (*Defines*)
+
+
 $Datasets::usage = "";
-(* ::Subsection::Closed:: *)
+
+
+(* ::Subsection:: *)
 (*Main*)
+
+
 Begin["`Encoder`"];
+
+
 (* ::Subsubsection:: *)
-(*resnet*)
+(*$Datasets*)
+
 
 (*Root Mean Square*)
 $Datasets = <|
@@ -87,8 +97,12 @@ Mean {0.4488, 0.4371, 0.4040}
 
 *)
 
-(* ::Subsection::Closed:: *)
+
+
+(* ::Subsection:: *)
 (*Additional*)
+
+
 SetAttributes[
 	{ },
 	{Protected, ReadProtected}

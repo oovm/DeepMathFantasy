@@ -37,18 +37,18 @@ TestReportAnalyze[obj_TestReport] := Block[
 	"Test" -> attr /@ Association @@@ Values[obj["TestResults"]]
 ];
 
+
+
 (* ::Subsubsection::Closed:: *)
 (*NetAnalyze*)
+
+
 NetAnalyze[net_] := "Net" -> <|
 	"Size" -> QuantityMagnitude[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
 	"Parameters" -> NetInformation[net, "ArraysTotalElementCount"],
 	"Layers" -> NetInformation[net, "LayerTypeCounts"],
 	"Nodes" -> NetInformation[net, "LayersCount"]
 |>;
-
-
-(* ::Subsubsection::Closed:: *)
-(*ClassifyAnalyze*)
 
 
 (* ::Subsubsection::Closed:: *)

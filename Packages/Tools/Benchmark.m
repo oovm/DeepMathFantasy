@@ -7,6 +7,7 @@
 TestReportAnalyze::usage = "";
 NetAnalyze::usage = "";
 ClassifyDualAnalyze::usage = "";
+ClassifyIndicatorAnalyze::usage = "";
 ClassifyProbabilitiesPlot::usage = "";
 ClassifyUncertaintyAnalyzeThenPlot::usage = "";
 ClassifyConfusionAnalyzeThenPlot::usage = "";
@@ -36,7 +37,8 @@ TestReportAnalyze[obj_TestReport] := Block[
 	"Test" -> attr /@ Association @@@ Values[obj["TestResults"]]
 ];
 
-
+(* ::Subsubsection::Closed:: *)
+(*NetAnalyze*)
 NetAnalyze[net_] := "Net" -> <|
 	"Size" -> QuantityMagnitude[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
 	"Parameters" -> NetInformation[net, "ArraysTotalElementCount"],
@@ -47,6 +49,10 @@ NetAnalyze[net_] := "Net" -> <|
 
 (* ::Subsubsection::Closed:: *)
 (*ClassifyAnalyze*)
+
+
+(* ::Subsubsection::Closed:: *)
+(*ClassifyAnalyzeUtilities*)
 
 
 ClassifyDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
@@ -146,6 +152,36 @@ ClassifyWorstPlot[cm_ClassifierMeasurementsObject] := Block[
 	*)
 	Rasterize@ImageCollage[exp[[All, 1]]]
 ];
+
+AskTopN[cm_] := Block[
+	{num = Length[First[cm]["ExtendedClasses"]]},
+	Which[
+		num <= 5, {1, 2, 3, 4},
+		num <= 10, {1, 2, 3, 5},
+		num <= 100, {1, 2, 5, 10},
+		num <= 1000, {1, 2, 5, 10, 50},
+		num <= 10000, {1, 2, 5, 10, 50, 100}
+	]
+];
+ProbabilityLoss[cm_] := Block[
+	{right, ass = First[cm]},
+	right = Flatten@Position[Inner[SameQ, ass["Predictions"], ass["TestSet", "Output"], List], True];
+	Mean[1 - cm["Probabilities"][[right]]]
+];
+ClassifyIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
+	Sequence @@ Table["Top-" <> ToString[i] -> cm["Accuracy" -> i], {i, AskTopN@cm}],
+	"LogLikelihood" -> cm@"LogLikelihood",
+	"CrossEntropyLoss" -> cm@"MeanCrossEntropy",
+	"ProbabilityLoss" -> ProbabilityLoss[cm],
+	"MeanProbability" -> Mean[cm@"Probabilities"],
+	"GeometricMeanProbability" -> cm@"GeometricMeanProbability",
+	"VarianceProbability" -> Variance[cm@"Probabilities"],
+	"ScottPi" -> cm@"ScottPi",
+	"CohenKappa" -> cm@"CohenKappa",
+	"RejectionRate" -> cm@"RejectionRate"
+|>;
+
+
 
 
 (* ::Subsection:: *)

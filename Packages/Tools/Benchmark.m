@@ -47,7 +47,7 @@ NetAnalyze[net_] := "Net" -> <|
 	"Size" -> QuantityMagnitude[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
 	"Parameters" -> NetInformation[net, "ArraysTotalElementCount"],
 	"Nodes" -> NetInformation[net, "LayersCount"],
-	"Layers" -> NetInformation[net, "LayerTypeCounts"]
+	"Layers" -> Association @@ Sort@Normal@NetInformation[net, "LayerTypeCounts"]
 |>;
 
 
@@ -99,9 +99,15 @@ ClassifyProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Block[
 ]*)
 
 ClassifyUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
-	{thresholds, accuracies, rejections, pts, plot},
+	{thresholds, accuracies, rejections, pts, plot, return},
 	thresholds = Join[Range[0.25, 0.80, 0.05], Range[0.81, 0.99, 0.01], Range[0.991, 0.999, 0.001], Range[0.9991, 0.9999, 0.0001]];
-	{accuracies, rejections} = Transpose[cm[{"Accuracy", "RejectionRate"}, IndeterminateThreshold -> #]& /@ thresholds] /. r_Real :> Round[r, 0.0001];
+	{accuracies, rejections} = Transpose[cm[{"Accuracy", "RejectionRate"}, IndeterminateThreshold -> #]& /@ thresholds];
+	return = "Threshold" -> <|
+		"Uncertainty" -> thresholds,
+		"AcceptanceRate" -> accuracies,
+		"RejectionRate" -> rejections
+	|>;
+	{accuracies, rejections} = {accuracies, rejections} /. {Indeterminate -> 1, r_Real :> Round[r, 0.0001]};
 	pts = MapThread[
 		Callout[{#1, #2},
 			Column @ {
@@ -125,11 +131,7 @@ ClassifyUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 		}
 	];
 	Export["Accuracy Rejection Curve.png", Show[plot, ImageSize -> 1200], Background -> None];
-	"Threshold" -> <|
-		"Uncertainty" -> thresholds,
-		"AcceptanceRate" -> accuracies,
-		"RejectionRate" -> rejections
-	|>
+	Return@return
 ];
 
 ClassifyConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
@@ -160,8 +162,8 @@ AskTopN[cm_] := Block[
 		num <= 5, {1, 2, 3, 4},
 		num <= 10, {1, 2, 3, 5},
 		num <= 100, {1, 2, 5, 10},
-		num <= 1000, {1, 2, 5, 10, 50},
-		num <= 10000, {1, 2, 5, 10, 50, 100}
+		num <= 1000, {1, 2, 5, 25},
+		num <= 10000, {1, 5, 25, 100}
 	]
 ];
 ProbabilityLoss[cm_] := Block[
@@ -179,12 +181,13 @@ ClassifyIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
 	"VarianceProbability" -> Variance[cm@"Probabilities"],
 	"ScottPi" -> cm@"ScottPi",
 	"CohenKappa" -> cm@"CohenKappa",
+	"Speed" -> 1000 cm@"EvaluationTime",
 	"RejectionRate" -> cm@"RejectionRate"
 |>;
 
 
-Options[toPercentageForm] = {"Mark" -> "%", "Times" -> 100, "Digit" -> 6};
-toPercentageForm[r_, _ : 6, OptionsPattern[]] := Block[
+Options[doFormat] = {"Mark" -> "%", "Times" -> 100, "Digit" -> 6};
+doFormat[r_, OptionsPattern[]] := Block[
 	{num, dot, mark, t, digit},
 	{mark, t, digit} = OptionValue@{"Mark", "Times", "Digit"};
 	{num, dot} = RealDigits[r t, 10, digit];
@@ -201,6 +204,7 @@ $ClassifyReportTemplate = StringTemplate["\
 ![Task](https://img.shields.io/badge/Task-Classifation-Orange.svg)
 ![Size](https://img.shields.io/badge/Size-`ShieldSize`-blue.svg)
 ![Accuracy](https://img.shields.io/badge/Accuracy-`ShieldAccuracy`-brightgreen.svg)
+
 Automatically generated on `Date`
 
 ## Network structure:
@@ -212,6 +216,7 @@ Automatically generated on `Date`
 
 ## Accuracy Curve
 ![Classification Curve.png](`img_1`)
+
 ![High Precision Classification Curve.png](`img_2`)
 
 ## Main Indicator
@@ -231,33 +236,31 @@ Automatically generated on `Date`
 |-------|--------|--------|------|--------------|
 `TestReport`
 "];
-
-
-
-
-
 ClassifyReport[record_, add_] := Block[
-	{line, md},
+	{line, md, indicatorF, DualScoreF, line2, TestReportF},
+	indicatorF = MapAt[doFormat, Values@record["Indicator"], List /@ {1, 2, 3, 4, 8, 9, -1}];
 	line = Transpose@Join[{Keys@First@Values@record["Dual"]}, Values /@ Values@record["Dual"]];
-	indicatorFormatted = MapAt[toPercentageForm, Values@record["Indicator"], List /@ {1, 2, 3, 4, 8, 9, -1}];
+	DualScoreF = MapAt[doFormat[#, "Times" -> 1, "Mark" -> ""]&, MapAt[doFormat, line, {All, 3 ;; 6}], {All, -1}];
+	line2 = MapAt[doFormat[#, "Times" -> 1, "Mark" -> " s"]&, Values /@ record["Test"], {All, -2}];
+	TestReportF = MapAt[If[# > 0, "+", "-"] <> doFormat[#, "Times" -> 1, "Mark" -> " MB"]&, line2, {All, -1}];
 	md = $ClassifyReportTemplate[<|
 		"ShieldSize" -> ToString[N@FromDigits@RealDigits[record["Net", "Size"], 10, 5]] <> "%20MB",
-		"ShieldAccuracy" -> toPercentageForm[record["Indicator", "Top-1"], 5, "%25"],
+		"ShieldAccuracy" -> doFormat[record["Indicator", "Top-1"], "Digit" -> 5, "Mark" -> "%25"],
 		"Name" -> record["Name"],
 		"Date" -> record["Date"],
 		"NetSize" -> record["Net", "Size"],
 		"Parameters" -> StringRiffle[Reverse@Flatten@Riffle[Partition[Reverse@IntegerDigits@record["Net", "Parameters"], UpTo[3]], " "], ""],
 		"Nodes" -> record["Net", "Nodes"],
 		"NetLayers" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Net", "Layers"], Values@record["Net", "Layers"], StringJoin],
-		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Indicator"], indicatorFormatted, StringJoin],
+		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Indicator"], indicatorF, StringJoin],
 		"img_1" -> add["Classification Curve.png"],
 		"img_2" -> add["High Precision Classification Curve.png"],
 		"img_3" -> add["Accuracy Rejection Curve.png"],
 		"img_4" -> add["ConfusionMatrix.png"],
 		"Dual" -> StringRiffle[Prepend[Keys@record["Dual"], "Class"], {"| ", " | ", " |"}],
-		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ MapAt[toPercentageForm, line, {All, 3 ;; 6}], "\n"],
+		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ DualScoreF, "\n"],
 		"Test" -> StringRiffle[Keys@First@record["Test"], {"| ", " | ", " |"}],
-		"TestReport" -> StringRiffle[StringRiffle[Values@#, {"| ", " | ", " |"}]& /@ record["Test"], "\n"]
+		"TestReport" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ TestReportF, "\n"]
 	|>]
 ];
 

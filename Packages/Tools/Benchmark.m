@@ -182,8 +182,25 @@ ClassifyIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
 	"RejectionRate" -> cm@"RejectionRate"
 |>;
 
+
+Options[toPercentageForm] = {"Mark" -> "%", "Times" -> 100, "Digit" -> 6};
+toPercentageForm[r_, _ : 6, OptionsPattern[]] := Block[
+	{num, dot, mark, t, digit},
+	{mark, t, digit} = OptionValue@{"Mark", "Times", "Digit"};
+	{num, dot} = RealDigits[r t, 10, digit];
+	If[dot > 0,
+		StringRiffle[Append[Insert[num, ".", dot + 1], mark], ""],
+		StringRiffle[Append[Take[Insert[Join[Array[0&, 1 - dot], num], ".", 2], digit + 1], mark], ""]
+	]
+];
+
+
+
 $ClassifyReportTemplate = StringTemplate["\
 # `Name`
+![Task](https://img.shields.io/badge/Task-Classifation-Orange.svg)
+![Size](https://img.shields.io/badge/Size-`ShieldSize`-blue.svg)
+![Accuracy](https://img.shields.io/badge/Accuracy-`ShieldAccuracy`-brightgreen.svg)
 Automatically generated on `Date`
 
 ## Network structure:
@@ -203,7 +220,7 @@ Automatically generated on `Date`
 
 ## Class Indicator
 `Dual`
-|------|------|-------|-------|-------|-------|--------|
+|-------|-------|--------|--------|--------|--------|---------|
 `DualScore`
 
 ## Hard Class
@@ -211,30 +228,43 @@ Automatically generated on `Date`
 
 ## Evaluation Report
 `Test`
-|------|-------|-------|-----|-------------|
+|-------|--------|--------|------|--------------|
 `TestReport`
 "];
-ClassifyReport[record_,add_] := Block[
+
+
+
+
+
+ClassifyReport[record_, add_] := Block[
 	{line, md},
 	line = Transpose@Join[{Keys@First@Values@record["Dual"]}, Values /@ Values@record["Dual"]];
+	indicatorFormatted = MapAt[toPercentageForm, Values@record["Indicator"], List /@ {1, 2, 3, 4, 8, 9, -1}];
 	md = $ClassifyReportTemplate[<|
+		"ShieldSize" -> ToString[N@FromDigits@RealDigits[record["Net", "Size"], 10, 5]] <> "%20MB",
+		"ShieldAccuracy" -> toPercentageForm[record["Indicator", "Top-1"], 5, "%25"],
 		"Name" -> record["Name"],
 		"Date" -> record["Date"],
 		"NetSize" -> record["Net", "Size"],
 		"Parameters" -> StringRiffle[Reverse@Flatten@Riffle[Partition[Reverse@IntegerDigits@record["Net", "Parameters"], UpTo[3]], " "], ""],
 		"Nodes" -> record["Net", "Nodes"],
 		"NetLayers" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Net", "Layers"], Values@record["Net", "Layers"], StringJoin],
-		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Indicator"], Values@record["Indicator"], StringJoin],
+		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Indicator"], indicatorFormatted, StringJoin],
 		"img_1" -> add["Classification Curve.png"],
 		"img_2" -> add["High Precision Classification Curve.png"],
 		"img_3" -> add["Accuracy Rejection Curve.png"],
 		"img_4" -> add["ConfusionMatrix.png"],
 		"Dual" -> StringRiffle[Prepend[Keys@record["Dual"], "Class"], {"| ", " | ", " |"}],
-		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ line, "\n"],
+		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ MapAt[toPercentageForm, line, {All, 3 ;; 6}], "\n"],
 		"Test" -> StringRiffle[Keys@First@record["Test"], {"| ", " | ", " |"}],
 		"TestReport" -> StringRiffle[StringRiffle[Values@#, {"| ", " | ", " |"}]& /@ record["Test"], "\n"]
 	|>]
 ];
+
+
+
+
+
 
 
 

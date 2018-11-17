@@ -19,3 +19,6 @@
 # Python 测试
 Test/Python/*
 !Test/Python/*.py
+
+# Mathematica 测试
+*.nb

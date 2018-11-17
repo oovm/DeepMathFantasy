@@ -24,21 +24,17 @@ Options[NetPlotInfo] = {
 	"OutputTensors" -> None,
 	"InternalDimensions" -> None
 };
-NetPlotInfo[net_NetChain, opts : OptionsPattern[]] := NetPlotInfo[MXNetLink`ToMXJSON[net]["JSON"], opts];
-NetPlotInfo[net_NetGraph, opts : OptionsPattern[]] := NetPlotInfo[MXNetLink`ToMXJSON[net]["JSON"], opts];
-NetPlotInfo[json_String, opts : OptionsPattern[]] := NetPlotInfo[Developer`ReadRawJSONString[json], opts];
 NetPlotInfo[expr_Association, OptionsPattern[]] := Block[
 	{
 		showTensors, vertexLabels, vertexOrder, edgeBundling, outputTensors,
 		internalDimensions, nodes, argnodes, heads, $oldids, nameStrings, typeStrings,
 		edges, nodeOps, longRange, opTypes, opNames, nullType, blank, maxIndex,
-		name, nodeDims, nops, opStyles, opSizes, vertexTypeData, labels,
-		infoGrids, nnodes
+		name, nodeDims, nops, opStyles, opSizes, vertexTypeData, labels, infoGrids
 	},
 	{
 		showTensors, vertexLabels, vertexOrder, edgeBundling, outputTensors, internalDimensions
 	} = OptionValue @ {
-		"ShowTensors", "VertexLabels", "VertexOrder", "EdgeBundling", "OutputTensors","InternalDimensions"
+		"ShowTensors", "VertexLabels", "VertexOrder", "EdgeBundling", "OutputTensors", "InternalDimensions"
 	};
 	{nodes, argnodes, heads} = Lookup[expr, {"nodes", "arg_nodes", "heads"}];
 	$oldids = If[ListQ[vertexOrder],
@@ -87,17 +83,36 @@ NetPlotInfo[expr_Association, OptionsPattern[]] := Block[
 	vertexTypeData = <|"VertexStyles" -> opStyles|>;
 	If[showTensors, vertexTypeData = Join[vertexTypeData, <|"VertexSizes" -> opSizes|>]];
 	labels = vertexLabels /. {"Name" :> nameStrings, "ID" :> ( $oldids + 1), "Type" :> typeStrings};
-	nnodes = Length[nodes];
-	{edges,
+	<|
+		"Edges" -> edges,
 		"VertexLabels" -> labels,
 		"HiddenVertices" -> If[showTensors, None, argnodes],
 		"VertexTypeData" -> vertexTypeData,
 		"VertexTypeLabels" -> Capitalize@opNames,
 		If[showTensors, "VertexTypes" -> opTypes, "VertexStyles" -> opTypes],
 		"LongRangeEdges" -> longRange
-	}
+	|>
 ];
 
+
+(*TODO:
+
+restylePlot[plot_Graphics,styles_List,op:OptionsPattern[Graphics]]:=Module[{x=styles},Show[MapAt[#/.{__,ln__Line}:>{Directive@Last[x=RotateLeft@x],ln}&,plot,1],op]]
+
+info=NetPlotInfo@net
+plot=GeneralUtilities`LayerPlot@@Join[info,{
+	"BaseLabelStyle" -> {FontSize -> 7},
+	"ArrowShape" -> "Chevron",
+	"MaximumImageSize" ->None,
+	"Rotated" ->True
+}];
+Legended[
+	First@plot,
+	PointLegend[plot[[2,1,1]],plot[[2,1,2]],LegendMarkerSize->12,LegendMargins->2]
+]
+
+
+*)
 
 
 

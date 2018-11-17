@@ -13,6 +13,7 @@ MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
 ClassificationBenchmark::usage = "";
 ClassificationInformation::usage = "";
+NetPlotInformation::usage = "";
 (* ::Subchapter:: *)
 (*Main*)
 (* ::Subsection:: *)
@@ -320,6 +321,12 @@ ClassificationBenchmark[net_, data_List, top_List : {1}] := Block[
 		"Time" -> First@UnitConvert[time, "SI"]
 	|>
 ];
+
+NetPlotInformation[net_NetChain, opts : OptionsPattern[]] := NetPlotInformation[MXNetLink`ToMXJSON[net]["JSON"], opts];
+NetPlotInformation[net_NetGraph, opts : OptionsPattern[]] := NetPlotInformation[MXNetLink`ToMXJSON[net]["JSON"], opts];
+NetPlotInformation[json_String, opts : OptionsPattern[]] := NetPlotInfo[Developer`ReadRawJSONString[json], opts];
+
+
 
 (* ::Subsection:: *)
 (*Additional*)

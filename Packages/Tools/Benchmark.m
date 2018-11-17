@@ -25,7 +25,7 @@ Begin["`Benchmark`"];
 (*TestReport*)
 
 
-TestReportAnalyze[obj_TestReport] := Block[
+TestReportAnalyze[obj_TestReportObject] := Block[
 	{attr},
 	attr = <|
 		"Index" -> #TestIndex,
@@ -46,8 +46,8 @@ TestReportAnalyze[obj_TestReport] := Block[
 NetAnalyze[net_] := "Net" -> <|
 	"Size" -> QuantityMagnitude[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
 	"Parameters" -> NetInformation[net, "ArraysTotalElementCount"],
-	"Layers" -> NetInformation[net, "LayerTypeCounts"],
-	"Nodes" -> NetInformation[net, "LayersCount"]
+	"Nodes" -> NetInformation[net, "LayersCount"],
+	"Layers" -> NetInformation[net, "LayerTypeCounts"]
 |>;
 
 
@@ -133,13 +133,14 @@ ClassifyUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 ];
 
 ClassifyConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
-	{class, img},
+	{class, img, matrix},
 	class = Sort@Take[Flatten[cm["TopConfusions" -> 100] /. Rule -> List] // DeleteDuplicates, UpTo[25]];
 	img = Magnify[Show[cm["ConfusionMatrixPlot" -> class], ImageSize -> 600], 2];
+	matrix = Lookup[#, class]& /@ Lookup[cm["ConfusionFunction"], class];
 	Export["ConfusionMatrix.png", img, Background -> None];
 	"Confusion" -> <|
 		"Classes" -> class,
-		"ConfusionMatrix" -> Lookup[#, class]& /@ Lookup[cm["ConfusionFunction"], class]
+		"ConfusionMatrix" -> matrix
 	|>
 ];
 
@@ -180,6 +181,60 @@ ClassifyIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
 	"CohenKappa" -> cm@"CohenKappa",
 	"RejectionRate" -> cm@"RejectionRate"
 |>;
+
+$ClassifyReportTemplate = StringTemplate["\
+# `Name`
+Automatically generated on `Date`
+
+## Network structure:
+- Network Size: **`NetSize` MB**
+- Parameters: **`Parameters`**
+- Nodes Count: **`Nodes`**
+- Layer Statistics
+`NetLayers`
+
+## Accuracy Curve
+![Classification Curve.png](`img_1`)
+![High Precision Classification Curve.png](`img_2`)
+
+## Main Indicator
+`Indicator`
+![Accuracy Rejection Curve.png](`img_3`)
+
+## Class Indicator
+`Dual`
+|------|------|-------|-------|-------|-------|--------|
+`DualScore`
+
+## Hard Class
+![ConfusionMatrix.png](`img_4`)
+
+## Evaluation Report
+`Test`
+|------|-------|-------|-----|-------------|
+`TestReport`
+"];
+ClassifyReport[record_,add_] := Block[
+	{line, md},
+	line = Transpose@Join[{Keys@First@Values@record["Dual"]}, Values /@ Values@record["Dual"]];
+	md = $ClassifyReportTemplate[<|
+		"Name" -> record["Name"],
+		"Date" -> record["Date"],
+		"NetSize" -> record["Net", "Size"],
+		"Parameters" -> StringRiffle[Reverse@Flatten@Riffle[Partition[Reverse@IntegerDigits@record["Net", "Parameters"], UpTo[3]], " "], ""],
+		"Nodes" -> record["Net", "Nodes"],
+		"NetLayers" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Net", "Layers"], Values@record["Net", "Layers"], StringJoin],
+		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Indicator"], Values@record["Indicator"], StringJoin],
+		"img_1" -> add["Classification Curve.png"],
+		"img_2" -> add["High Precision Classification Curve.png"],
+		"img_3" -> add["Accuracy Rejection Curve.png"],
+		"img_4" -> add["ConfusionMatrix.png"],
+		"Dual" -> StringRiffle[Prepend[Keys@record["Dual"], "Class"], {"| ", " | ", " |"}],
+		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ line, "\n"],
+		"Test" -> StringRiffle[Keys@First@record["Test"], {"| ", " | ", " |"}],
+		"TestReport" -> StringRiffle[StringRiffle[Values@#, {"| ", " | ", " |"}]& /@ record["Test"], "\n"]
+	|>]
+];
 
 
 

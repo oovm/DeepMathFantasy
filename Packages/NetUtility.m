@@ -12,6 +12,7 @@ NetMerge::usage = "Merge net nodes";
 MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
 ClassifyAnalyze::usage = "";
+ClassifyAnalyzeExport::usage = "";
 NetPlotInformation::usage = "";
 (* ::Subchapter:: *)
 (*Main*)
@@ -292,21 +293,32 @@ MXNet$Boost[dm_Association, OptionsPattern[]] := Block[
 ]&;
 
 
-ClassifyAnalyze[ass_Association]:=Block[
-	{date,cm,net,report},
-	date=DateString[];
-	cm=Lookup[ass,"Result"];
-	net=Lookup[ass,"Net"];
+ClassifyAnalyze[ass_Association] := Block[
+	{date, cm, net, report},
+	date = DateString[];
+	cm = Lookup[ass, "Result"];
+	net = Lookup[ass, "Net"];
 	ClassifyProbabilitiesPlot@cm;
-	report=<|
-		"Date"->date,
-		If[MissingQ@net,Nothing,NetAnalyze@net],
-		ClassifyIndicatorAnalyze@cm;
+	report = <|
+		If[MissingQ@Lookup[ass, "Name"], "Name" -> ToString@Hash@cm, "Name" -> ass@"Name"],
+		"Date" -> date,
+		"Task" -> "Classification",
+		If[MissingQ@net, Nothing, NetAnalyze@net],
+		ClassifyIndicatorAnalyze@cm,
 		ClassifyDualAnalyze@cm,
 		ClassifyUncertaintyAnalyzeThenPlot@cm,
 		ClassifyConfusionAnalyzeThenPlot@cm
 	|>
 ];
+
+ClassifyAnalyzeExport[analyze_Association, test_TestReportObject] := Block[
+	{fix, text, ass = analyze},
+	AssociateTo[ass, DeepMath`Tools`TestReportAnalyze[test]];
+	fix = GeneralUtilities`TextString`PackagePrivate`fmtReal[a_, b_] :> If[Abs@a < 10.0^-6, ToString@0, GeneralUtilities`TextString`PackagePrivate`fmtReal@a];
+	text = Quiet@Dataset`DatasetJSONString[Dataset[ass]] /. fix;
+	Export[ass["Name"] <> ".json", StringReplace[text, {", {" -> ",\n {", "], [" -> "], \n["}], "Text"]
+];
+
 
 NetPlotInformation[net_NetChain, opts : OptionsPattern[]] := NetPlotInformation[MXNetLink`ToMXJSON[net]["JSON"], opts];
 NetPlotInformation[net_NetGraph, opts : OptionsPattern[]] := NetPlotInformation[MXNetLink`ToMXJSON[net]["JSON"], opts];

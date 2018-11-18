@@ -11,8 +11,8 @@ PrintLine::usage = "Print Expression With Line Broken";
 NetMerge::usage = "Merge net nodes";
 MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
-ClassifyAnalyze::usage = "";
-ClassifyAnalyzeExport::usage = "";
+ClassificationAnalyze::usage = "";
+ClassificationAnalyzeExport::usage = "";
 NetPlotInformation::usage = "";
 (* ::Subchapter:: *)
 (*Main*)
@@ -293,7 +293,7 @@ MXNet$Boost[dm_Association, OptionsPattern[]] := Block[
 ]&;
 
 
-ClassifyAnalyze[ass_Association] := Block[
+ClassificationAnalyze[ass_Association] := Block[
 	{date, cm, net, report},
 	date = DateString[];
 	cm = Lookup[ass, "Result"];
@@ -311,7 +311,7 @@ ClassifyAnalyze[ass_Association] := Block[
 	|>
 ];
 
-ClassifyAnalyzeExport[analyze_Association, test_TestReportObject] := Block[
+ClassificationAnalyzeExport[analyze_Association, test_TestReportObject] := Block[
 	{fix, text, ass = analyze},
 	AssociateTo[ass, DeepMath`Tools`TestReportAnalyze[test]];
 	fix = GeneralUtilities`TextString`PackagePrivate`fmtReal[a_, b_] :> If[Abs@a < 10.0^-6, ToString@0, GeneralUtilities`TextString`PackagePrivate`fmtReal@a];

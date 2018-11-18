@@ -5,12 +5,12 @@
 
 
 
-ClassifyDualAnalyze::usage = "";
-ClassifyIndicatorAnalyze::usage = "";
-ClassifyProbabilitiesPlot::usage = "";
-ClassifyUncertaintyAnalyzeThenPlot::usage = "";
-ClassifyConfusionAnalyzeThenPlot::usage = "";
-ClassifyWorstPlot::usage = "";
+ClassificationDualAnalyze::usage = "";
+ClassificationIndicatorAnalyze::usage = "";
+ClassificationProbabilitiesPlot::usage = "";
+ClassificationUncertaintyAnalyzeThenPlot::usage = "";
+ClassificationConfusionAnalyzeThenPlot::usage = "";
+ClassificationWorstPlot::usage = "";
 
 
 (* ::Subsection:: *)
@@ -19,12 +19,29 @@ ClassifyWorstPlot::usage = "";
 
 Begin["`Benchmark`"];
 
+(*TODO: ClassifyEvaluate
+
+classes=NetExtract[model,"Output"][["Labels"]]
+$now=Now
+$eval=model[First/@data,"Probabilities",TargetDevice->"GPU"];
+$now=QuantityMagnitude[Now-$now,"Seconds"]
+makeObj=MachineLearning`file115ClassifierPredictor`PackagePrivate`fillClassifierMeasurementsObject[
+MachineLearning`PackageScope`NetToClassifierFunction@model,
+	{Range@Length@data,Last/@data},
+	classes[[Flatten[Position[#,Max[#]]&/@(Values/@$eval)]]],
+	Log[Values/@$eval],
+	classes,
+	SparseArray@Array[1&,Length@data],
+	$now
+]
+
+*)
 
 (* ::Subsubsection::Closed:: *)
 (*ClassifyAnalyzeUtilities*)
 
 
-ClassifyDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
+ClassificationDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
 	{attr, tiny},
 	attr = <|
 		"Count" -> Total /@ cm@"ConfusionFunction",
@@ -38,7 +55,7 @@ ClassifyDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
 	"Dual" -> Query[All, Key /@ tiny]@attr
 ];
 
-ClassifyProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Block[
+ClassificationProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Block[
 	{count, plot},
 	count = Reverse@BinCounts[cm@"Probabilities", {0, 100 / 100, 5 / 100}];
 	plot = RectangleChart[
@@ -67,7 +84,7 @@ ClassifyProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Block[
 	PlotLabel -> Style["Expired", "Title", 14], PlotRange -> All, PlotRangePadding -> None
 ]*)
 
-ClassifyUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
+ClassificationUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 	{thresholds, accuracies, rejections, pts, plot},
 	thresholds = Join[Range[0.25, 0.80, 0.05], Range[0.81, 0.99, 0.01], Range[0.991, 0.999, 0.001], Range[0.9991, 0.9999, 0.0001]];
 	{accuracies, rejections} = Transpose[cm[{"Accuracy", "RejectionRate"}, IndeterminateThreshold -> #]& /@ thresholds] /. {Indeterminate -> 1};
@@ -101,7 +118,7 @@ ClassifyUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 	|>
 ];
 
-ClassifyConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
+ClassificationConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 	{class, img, matrix},
 	class = Sort@Take[Flatten[cm["TopConfusions" -> 100] /. Rule -> List] // DeleteDuplicates, UpTo[25]];
 	img = Magnify[Show[cm["ConfusionMatrixPlot" -> class], ImageSize -> 600], 2];
@@ -113,7 +130,7 @@ ClassifyConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 	|>
 ];
 
-ClassifyWorstPlot[cm_ClassifierMeasurementsObject] := Block[
+ClassificationWorstPlot[cm_ClassifierMeasurementsObject] := Block[
 	{exp},
 	exp = Take[Flatten@cm[{"WorstClassifiedExamples", "LeastCertainExamples", "IndeterminateExamples"}], UpTo[100]];
 	(*
@@ -138,7 +155,7 @@ ProbabilityLoss[cm_] := Block[
 	right = Flatten@Position[Inner[SameQ, ass["Predictions"], ass["TestSet", "Output"], List], True];
 	Mean[1 - cm["Probabilities"][[right]]]
 ];
-ClassifyIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
+ClassificationIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
 	Sequence @@ Table["Top-" <> ToString[i] -> cm["Accuracy" -> i], {i, AskTopN@cm}],
 	"LogLikelihood" -> cm@"LogLikelihood",
 	"CrossEntropyLoss" -> cm@"MeanCrossEntropy",

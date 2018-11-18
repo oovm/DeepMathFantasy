@@ -11,8 +11,7 @@ PrintLine::usage = "Print Expression With Line Broken";
 NetMerge::usage = "Merge net nodes";
 MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
-ClassificationMain::usage = "";
-ClassificationAnalyzeExport::usage = "";
+ClassificationBenchmark::usage = "";
 NetPlotInformation::usage = "";
 (* ::Subchapter:: *)
 (*Main*)
@@ -293,30 +292,30 @@ MXNet$Boost[dm_Association, OptionsPattern[]] := Block[
 ]&;
 
 
-ClassificationMain[ass_Association] := Block[
+(* ::Subsubsection::Closed:: *)
+(*ClassificationBenchmark*)
+ClassificationBenchmark[model_, data_List] := ClassificationEvaluate[model, data];
+ClassificationBenchmark[cm_ClassifierMeasurementsObject, name_String : Missing[]] := Block[
 	{date, cm, net, report},
-	date = DateString[];
-	cm = Lookup[ass, "Result"];
-	net = Lookup[ass, "Net"];
 	ClassifyProbabilitiesPlot@cm;
-	report = <|
-		If[MissingQ@Lookup[ass, "Name"], "Name" -> ToString@Hash@cm, "Name" -> ass@"Name"],
-		"Date" -> date,
+	<|
+		If[MissingQ@name, "Name" -> ToString@Hash@cm, "Name" -> name],
+		"Date" -> DateString[],
 		"Task" -> "Classification",
-		If[MissingQ@net, Nothing, NetAnalyze@net],
+		NetAnalyze[First[First[cm]["Model"]]["Model", "Net"]],
+		ClassificationSpeed@cm,
 		ClassifyIndicatorAnalyze@cm,
 		ClassifyDualAnalyze@cm,
 		ClassifyUncertaintyAnalyzeThenPlot@cm,
 		ClassifyConfusionAnalyzeThenPlot@cm
 	|>
 ];
-
-ClassificationAnalyzeExport[analyze_Association, test_TestReportObject] := Block[
-	{fix, text, ass = analyze},
-	AssociateTo[ass, DeepMath`Tools`TestReportAnalyze[test]];
-	fix = GeneralUtilities`TextString`PackagePrivate`fmtReal[a_, b_] :> If[Abs@a < 10.0^-6, ToString@0, GeneralUtilities`TextString`PackagePrivate`fmtReal@a];
-	text = Quiet@Dataset`DatasetJSONString[Dataset[ass]] /. fix;
-	Export[ass["Name"] <> ".json", StringReplace[text, {", {" -> ",\n {", "], [" -> "], \n["}], "Text"]
+ClassificationBenchmark[attr_Association, opts__] := AssociateTo[attr, {opts}];
+ClassificationBenchmark[path_String, analyze_Association] := Block[
+	{fix, text},
+	fix = GeneralUtilities`TextString`PackagePrivate`fmtReal[a_, b_] :> ExportString[a, "JSON"];
+	text = Quiet@Dataset`DatasetJSONString[Dataset[analyze]] /. fix;
+	Export[path, StringReplace[text, {", {" -> ",\n {", "], [" -> "], \n["}], "Text"]
 ];
 
 

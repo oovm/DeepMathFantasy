@@ -24,13 +24,13 @@ Begin["`Benchmark`"];
 (* ::Subsubsection::Closed:: *)
 (*ClassificationEvaluate*)
 
-ClassificationEvaluate[model_, data_] := Block[
+ClassificationEvaluate[net_, data_] := Block[
 	{classes, $now = Now, $eval},
-	classes = NetExtract[model, "Output"][["Labels"]];
-	$eval = model[First /@ data, "Probabilities", TargetDevice -> "GPU"];
+	classes = NetExtract[net, "Output"][["Labels"]];
+	$eval = net[First /@ data, "Probabilities", TargetDevice -> "GPU"];
 	$now = QuantityMagnitude[Now - $now, "Seconds"];
 	MachineLearning`file115ClassifierPredictor`PackagePrivate`fillClassifierMeasurementsObject[
-		MachineLearning`PackageScope`NetToClassifierFunction@model,
+		MachineLearning`PackageScope`NetToClassifierFunction@net,
 		{Range@Length@data, Last /@ data},
 		First@Keys@ReverseSort[#]& /@ $eval,
 		Log[Values /@ $eval],

@@ -5,8 +5,10 @@
 
 
 
-ClassificationDualAnalyze::usage = "";
+ClassificationEvaluate::usage = "";
 ClassificationIndicatorAnalyze::usage = "";
+ClassificationClassAnalyze::usage = "";
+ClassificationSpeed::usage = "";
 ClassificationProbabilitiesPlot::usage = "";
 ClassificationUncertaintyAnalyzeThenPlot::usage = "";
 ClassificationConfusionAnalyzeThenPlot::usage = "";
@@ -19,29 +21,30 @@ ClassificationWorstPlot::usage = "";
 
 Begin["`Benchmark`"];
 
-(*TODO: ClassifyEvaluate
+(* ::Subsubsection::Closed:: *)
+(*ClassificationEvaluate*)
 
-classes=NetExtract[model,"Output"][["Labels"]]
-$now=Now
-$eval=model[First/@data,"Probabilities",TargetDevice->"GPU"];
-$now=QuantityMagnitude[Now-$now,"Seconds"]
-makeObj=MachineLearning`file115ClassifierPredictor`PackagePrivate`fillClassifierMeasurementsObject[
-MachineLearning`PackageScope`NetToClassifierFunction@model,
-	{Range@Length@data,Last/@data},
-	classes[[Flatten[Position[#,Max[#]]&/@(Values/@$eval)]]],
-	Log[Values/@$eval],
-	classes,
-	SparseArray@Array[1&,Length@data],
-	$now
-]
-
-*)
+ClassificationEvaluate[model_, data_] := Block[
+	{classes, $now = Now, $eval},
+	classes = NetExtract[model, "Output"][["Labels"]];
+	$eval = model[First /@ data, "Probabilities", TargetDevice -> "GPU"];
+	$now = QuantityMagnitude[Now - $now, "Seconds"];
+	MachineLearning`file115ClassifierPredictor`PackagePrivate`fillClassifierMeasurementsObject[
+		MachineLearning`PackageScope`NetToClassifierFunction@model,
+		{Range@Length@data, Last /@ data},
+		First@Keys@ReverseSort[#]& /@ $eval,
+		Log[Values /@ $eval],
+		classes,
+		SparseArray@Array[1&, Length@data],
+		$now
+	]
+];
 
 (* ::Subsubsection::Closed:: *)
-(*ClassifyAnalyzeUtilities*)
+(*ClassificationClassAnalyze*)
 
 
-ClassificationDualAnalyze[cm_ClassifierMeasurementsObject] := Block[
+ClassificationClassAnalyze[cm_ClassifierMeasurementsObject] := Block[
 	{attr, tiny},
 	attr = <|
 		"Count" -> Total /@ cm@"ConfusionFunction",
@@ -104,7 +107,7 @@ ClassificationUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Blo
 		PlotTheme -> {"Monochrome", "FullAxes"},
 		FrameLabel -> Style[#, 20]& /@ {"Indeterminate Threshold", "Accuracy"},
 		GridLines -> Automatic, GridLinesStyle -> Directive[GrayLevel[0.5, 0.5], AbsoluteThickness@1, AbsoluteDashing@{1, 2}],
-		(*PlotMarkers\[Rule]Graphics[{EdgeForm[Directive[AbsoluteThickness[1.],RGBColor[0.34398,0.49112,0.89936]]],White,Disk[{0,0},Offset[2*{1.,1.},{0.,0.}]]}],*)
+	(*PlotMarkers\[Rule]Graphics[{EdgeForm[Directive[AbsoluteThickness[1.],RGBColor[0.34398,0.49112,0.89936]]],White,Disk[{0,0},Offset[2*{1.,1.},{0.,0.}]]}],*)
 		Epilog -> {
 			Text[Style["Accuracy Rejection Curve", "Title", 30, Black], Offset[{-325, + 30}, Scaled[{1, 0}]], {-1, 0}],
 			{Dashed, Line[{{0, Min@accuracies}, {Max@rejections, Max@accuracies}}]}
@@ -165,9 +168,10 @@ ClassificationIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -
 	"VarianceProbability" -> Variance[cm@"Probabilities"],
 	"ScottPi" -> cm@"ScottPi",
 	"CohenKappa" -> cm@"CohenKappa",
-	"Speed" -> 1000 cm@"EvaluationTime",
 	"RejectionRate" -> cm@"RejectionRate"
 |>;
+
+ClassificationSpeed[cm_ClassifierMeasurementsObject] := "Speed" -> 1000 cm@"BatchEvaluationTime";
 
 
 Options[doFormat] = {"Mark" -> "%", "Times" -> 100, "Digit" -> 6};
@@ -183,7 +187,7 @@ doFormat[r_, OptionsPattern[]] := Block[
 
 
 
-$ClassifyReportTemplate = StringTemplate["\
+$ClassificationReportTemplate = StringTemplate["\
 # `Name`
 ![Task](https://img.shields.io/badge/Task-Classifation-Orange.svg)
 ![Size](https://img.shields.io/badge/Size-`ShieldSize`-blue.svg)
@@ -220,14 +224,14 @@ Automatically generated on `Date`
 |-------|--------|--------|------|--------------|
 `TestReport`
 "];
-ClassifyReport[record_, add_] := Block[
+ClassificationReport[record_, add_] := Block[
 	{line, md, indicatorF, DualScoreF, line2, TestReportF},
 	indicatorF = MapAt[doFormat, Values@record["Indicator"], List /@ {1, 2, 3, 4, 8, 9, -1}];
 	line = Transpose@Join[{Keys@First@Values@record["Dual"]}, Values /@ Values@record["Dual"]];
 	DualScoreF = MapAt[doFormat[#, "Times" -> 1, "Mark" -> ""]&, MapAt[doFormat, line, {All, 3 ;; 6}], {All, -1}];
 	line2 = MapAt[doFormat[#, "Times" -> 1, "Mark" -> " s"]&, Values /@ record["Test"], {All, -2}];
 	TestReportF = MapAt[If[# > 0, "+", "-"] <> doFormat[#, "Times" -> 1, "Mark" -> " MB"]&, line2, {All, -1}];
-	md = $ClassifyReportTemplate[<|
+	md = $ClassificationReportTemplate[<|
 		"ShieldSize" -> ToString[N@FromDigits@RealDigits[record["Net", "Size"], 10, 5]] <> "%20MB",
 		"ShieldAccuracy" -> doFormat[record["Indicator", "Top-1"], "Digit" -> 5, "Mark" -> "%25"],
 		"Name" -> record["Name"],

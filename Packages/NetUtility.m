@@ -11,7 +11,7 @@ PrintLine::usage = "Print Expression With Line Broken";
 NetMerge::usage = "Merge net nodes";
 MXNet$Bind::usage = "Import and Bind the MX-Symbol and MX-NDArray";
 MXNet$Boost::usage = "A Function which call a mxnet evaluation";
-ClassificationAnalyze::usage = "";
+ClassificationMain::usage = "";
 ClassificationAnalyzeExport::usage = "";
 NetPlotInformation::usage = "";
 (* ::Subchapter:: *)
@@ -293,7 +293,7 @@ MXNet$Boost[dm_Association, OptionsPattern[]] := Block[
 ]&;
 
 
-ClassificationAnalyze[ass_Association] := Block[
+ClassificationMain[ass_Association] := Block[
 	{date, cm, net, report},
 	date = DateString[];
 	cm = Lookup[ass, "Result"];

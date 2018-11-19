@@ -265,6 +265,46 @@ ClassificationReport[record_] := Block[
 
 
 
+
+
+DataImport[path_String] := Block[
+	{name = "Data Loading", var},
+	var := var = Import@path;
+	Sow@VerificationTest[Head[var], List, TestID -> name];
+	Return[var]
+];
+ModelImport[path_String] := Block[
+	{name = "Model Loading", var},
+	var := var = Import@path;
+	Sow@VerificationTest[Head[var], NetChain, TestID -> name];
+	Return[var]
+];
+CPUTiming[net_NetChain, sample_List] := Block[
+	{name = "CPU Timing", var},
+	var := var = {
+		"CPU Warm-Up" -> First[net[sample] // Timing],
+		"CPU Single" -> First[net[First@sample] // AbsoluteTiming],
+		"CPU Batch" -> First[net[sample] // RepeatedTiming] / 16.0
+	};
+	Sow@VerificationTest[Head[var], List, TestID -> name];
+	Return[var]
+];
+GPUTiming[net_NetChain, sample_List] := Block[
+	{name = "GPU Timing", var},
+	var := var = {
+		"GPU Warm-Up" -> First[net[sample, TargetDevice -> "GPU"] // Timing],
+		"GPU Single" -> First[net[First@sample, TargetDevice -> "GPU"] // AbsoluteTiming],
+		"GPU Batch" -> First[net[sample, TargetDevice -> "GPU"] // RepeatedTiming] / 16.0
+	};
+	Sow@VerificationTest[Head[var], List, TestID -> name];
+	Return[var]
+];
+
+
+
+
+
+
 (* ::Subsection:: *)
 (*Additional*)
 

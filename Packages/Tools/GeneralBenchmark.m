@@ -3,8 +3,8 @@
 (* ::Subsection:: *)
 (*Benchmark*)
 
-TestReportAnalyze::usage="";
-NetAnalyze::usage="";
+TestReportAnalyze::usage = "";
+NetAnalyze::usage = "";
 
 (* ::Subsection:: *)
 (*Main*)
@@ -39,7 +39,7 @@ NetAnalyze[net_] := "Net" -> <|
 	"Size" -> QuantityMagnitude[NetInformation[net, "ArraysTotalSize"], "Megabytes"],
 	"Parameters" -> NetInformation[net, "ArraysTotalElementCount"],
 	"Nodes" -> NetInformation[net, "LayersCount"],
-	"Layers" -> Association @@ Sort@Normal@NetInformation[net, "LayerTypeCounts"]
+	"Layers" -> KeyMap[ToString, Association @@ Sort@Normal@NetInformation[net, "LayerTypeCounts"]]
 |>;
 
 

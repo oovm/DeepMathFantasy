@@ -296,26 +296,27 @@ MXNet$Boost[dm_Association, OptionsPattern[]] := Block[
 (*ClassificationBenchmark*)
 ClassificationBenchmark[model_, data_List] := ClassificationEvaluate[model, data];
 ClassificationBenchmark[cm_ClassifierMeasurementsObject, name_String : Missing[]] := Block[
-	{date, cm, net, report},
-	ClassifyProbabilitiesPlot@cm;
+	{net = First[First[cm]["Model"]]["Model", "Net"]},
+	ClassificationProbabilitiesPlot@cm;
 	<|
-		If[MissingQ@name, "Name" -> ToString@Hash@cm, "Name" -> name],
+		"Name" -> If[MissingQ@name, Hash[cm, "Expression", "HexString"], name],
 		"Date" -> DateString[],
 		"Task" -> "Classification",
-		NetAnalyze[First[First[cm]["Model"]]["Model", "Net"]],
+		NetAnalyze[net],
 		ClassificationSpeed@cm,
-		ClassifyIndicatorAnalyze@cm,
-		ClassifyDualAnalyze@cm,
-		ClassifyUncertaintyAnalyzeThenPlot@cm,
-		ClassifyConfusionAnalyzeThenPlot@cm
+		ClassificationIndicatorAnalyze@cm,
+		ClassificationClassAnalyze@cm,
+		ClassificationUncertaintyAnalyzeThenPlot@cm,
+		ClassificationConfusionAnalyzeThenPlot@cm
 	|>
 ];
-ClassificationBenchmark[attr_Association, opts__] := AssociateTo[attr, {opts}];
+ClassificationBenchmark[attr_Association, opts__] := Block[{new = attr}, AssociateTo[new, {opts}]];
 ClassificationBenchmark[path_String, analyze_Association] := Block[
 	{fix, text},
 	fix = GeneralUtilities`TextString`PackagePrivate`fmtReal[a_, b_] :> ExportString[a, "JSON"];
 	text = Quiet@Dataset`DatasetJSONString[Dataset[analyze]] /. fix;
-	Export[path, StringReplace[text, {", {" -> ",\n {", "], [" -> "], \n["}], "Text"]
+	Export[path <> ".json", StringReplace[text, {", {" -> ",\n {", "], [" -> "], \n["}], "Text"];
+	Export[path <> ".md", ClassificationReport[analyze], "Text"]
 ];
 
 

@@ -192,6 +192,7 @@ $ClassificationReportTemplate = StringTemplate["\
 ![Task](https://img.shields.io/badge/Task-Classifation-Orange.svg)
 ![Size](https://img.shields.io/badge/Size-`ShieldSize`-blue.svg)
 ![Accuracy](https://img.shields.io/badge/Accuracy-`ShieldAccuracy`-brightgreen.svg)
+![Speed](https://img.shields.io/badge/Speed-`ShieldSpeed`-ff69b4.svg)
 
 Automatically generated on `Date`
 
@@ -199,7 +200,8 @@ Automatically generated on `Date`
 - Network Size: **`NetSize` MB**
 - Parameters: **`Parameters`**
 - Nodes Count: **`Nodes`**
-- Layer Statistics
+- Speed: **`Speed`/sample**
+- Layers:
 `NetLayers`
 
 ## Accuracy Curve
@@ -224,9 +226,10 @@ Automatically generated on `Date`
 |-------|--------|--------|------|--------------|
 `TestReport`
 "];
-ClassificationReport[record_, add_] := Block[
-	{line, md, indicatorF, DualScoreF, line2, TestReportF},
-	indicatorF = MapAt[doFormat, Values@record["Indicator"], List /@ {1, 2, 3, 4, 8, 9, -1}];
+ClassificationReport[record_] := Block[
+	{line, md, indicatorF, DualScoreF, line2, TestReportF, speed},
+	speed = doFormat[record["Speed"], "Times" -> 1, "Digit" -> 4, "Mark" -> " ms"];
+	indicatorF = indicatorF = MapAt[doFormat, Values@KeyDrop[record["Indicator"], "Speed"], List /@ {1, 2, 3, 4, 8, 9, -1}];
 	line = Transpose@Join[{Keys@First@Values@record["Dual"]}, Values /@ Values@record["Dual"]];
 	DualScoreF = MapAt[doFormat[#, "Times" -> 1, "Mark" -> ""]&, MapAt[doFormat, line, {All, 3 ;; 6}], {All, -1}];
 	line2 = MapAt[doFormat[#, "Times" -> 1, "Mark" -> " s"]&, Values /@ record["Test"], {All, -2}];
@@ -234,17 +237,19 @@ ClassificationReport[record_, add_] := Block[
 	md = $ClassificationReportTemplate[<|
 		"ShieldSize" -> ToString[N@FromDigits@RealDigits[record["Net", "Size"], 10, 5]] <> "%20MB",
 		"ShieldAccuracy" -> doFormat[record["Indicator", "Top-1"], "Digit" -> 5, "Mark" -> "%25"],
+		"ShieldSpeed" -> StringReplace[speed, " " -> "%20"],
 		"Name" -> record["Name"],
 		"Date" -> record["Date"],
 		"NetSize" -> record["Net", "Size"],
 		"Parameters" -> StringRiffle[Reverse@Flatten@Riffle[Partition[Reverse@IntegerDigits@record["Net", "Parameters"], UpTo[3]], " "], ""],
 		"Nodes" -> record["Net", "Nodes"],
+		"Speed" -> speed,
 		"NetLayers" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Net", "Layers"], Values@record["Net", "Layers"], StringJoin],
-		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Indicator"], indicatorF, StringJoin],
-		"img_1" -> add["Classification Curve.png"],
-		"img_2" -> add["High Precision Classification Curve.png"],
-		"img_3" -> add["Accuracy Rejection Curve.png"],
-		"img_4" -> add["ConfusionMatrix.png"],
+		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@KeyDrop[record["Indicator"], "Speed"], indicatorF, StringJoin],
+		"img_1" -> record["Image", "Classification Curve.png"],
+		"img_2" -> record["Image", "High Precision Classification Curve.png"],
+		"img_3" -> record["Image", "Accuracy Rejection Curve.png"],
+		"img_4" -> record["Image", "ConfusionMatrix.png"],
 		"Dual" -> StringRiffle[Prepend[Keys@record["Dual"], "Class"], {"| ", " | ", " |"}],
 		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ DualScoreF, "\n"],
 		"Test" -> StringRiffle[Keys@First@record["Test"], {"| ", " | ", " |"}],

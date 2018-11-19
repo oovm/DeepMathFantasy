@@ -23,8 +23,8 @@ $Datasets = <|
 	"Normal" -> <|
 		"Size" -> Automatic,
 		"Mean" -> 0.5,
-		"STD" -> 1,
-		"RMS" -> 1
+		"STD" -> 0.25,
+		"RMS" -> 0.25
 	|>,
 	"MNIST" -> <|
 		"Size" -> {1, 28, 28},

@@ -263,20 +263,37 @@ ClassificationReport[record_] := Block[
 
 
 
-
-
-
-
+SetAttributes[Reaper, HoldAll];
+Reaper[expr_] := Block[
+	{raw = Reap@Reap[expr, "Test"]},
+	{raw[[1, 2, 1]], raw[[2, 2]]}
+];
+CheckDependency[] := Block[
+	{name = "Check Dependency", var},
+	var := var = {<< MachineLearning`, << NeuralNetworks`, << MXNetLink`, << DeepMath`};
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
+];
+CheckParallelize[] := Block[
+	{name = "Check Parallelize", var},
+	var := var = LaunchKernels[];
+	Sow[VerificationTest[MemberQ[{List, Symbol}, Head[var]], True, TestID -> name], "Test"];
+];
 DataImport[path_String] := Block[
 	{name = "Data Loading", var},
 	var := var = Import@path;
-	Sow@VerificationTest[Head[var], List, TestID -> name];
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Return[var]
 ];
 ModelImport[path_String] := Block[
 	{name = "Model Loading", var},
 	var := var = Import@path;
-	Sow@VerificationTest[Head[var], NetChain, TestID -> name];
+	Sow[VerificationTest[Head[var], NetChain, TestID -> name], "Test"];
+	Return[var]
+];
+LabelImport[net_NetChain] := Block[
+	{name = "Labels Loading", var},
+	var := var = NetExtract[net, "Output"][["Labels"]];
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Return[var]
 ];
 CPUTiming[net_NetChain, sample_List] := Block[
@@ -286,8 +303,8 @@ CPUTiming[net_NetChain, sample_List] := Block[
 		"CPU Single" -> First[net[First@sample] // AbsoluteTiming],
 		"CPU Batch" -> First[net[sample] // RepeatedTiming] / 16.0
 	};
-	Sow@VerificationTest[Head[var], List, TestID -> name];
-	Return[var]
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
+	Return[name -> var]
 ];
 GPUTiming[net_NetChain, sample_List] := Block[
 	{name = "GPU Timing", var},
@@ -296,9 +313,39 @@ GPUTiming[net_NetChain, sample_List] := Block[
 		"GPU Single" -> First[net[First@sample, TargetDevice -> "GPU"] // AbsoluteTiming],
 		"GPU Batch" -> First[net[sample, TargetDevice -> "GPU"] // RepeatedTiming] / 16.0
 	};
-	Sow@VerificationTest[Head[var], List, TestID -> name];
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
+	Return[name -> var]
+];
+getSample[data_List] := Block[
+	{name = "Sampling", var},
+	var := var = If[
+		Head@data[[1, 1]] == File,
+		Import /@ RandomSample[First /@ data, 16],
+		RandomSample[First /@ data, 16]
+	];
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Return[var]
 ];
+CalculationStage[dataPath_, modelPath_] := Block[
+	{model, data, labels, sample, eval, groups},
+	Reaper[
+		CheckDependency[] ;
+		
+		data = DataImport[dataPath];
+		model = ModelImport[modelPath];
+		
+		labels = LabelImport[model];
+		Sow["Classes" -> Length@labels];
+		
+		sample = getSample[data];
+		Sow@CPUTiming[model, sample];
+		Sow@GPUTiming[model, sample];
+		
+		eval = NetReplacePart[model, "Output" -> Length@labels];
+		groups = Partition[First /@ data, UpTo@Ceiling[10^6 / Length@labels]];
+	]
+]
+
 
 
 

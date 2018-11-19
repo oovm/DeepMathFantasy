@@ -20,15 +20,14 @@ Begin["`Benchmark`"];
 TestReportAnalyze[obj_TestReportObject] := Block[
 	{attr},
 	attr = <|
-		"Index" -> #TestIndex,
+		"Index" -> First[#2],
 		"TestID" -> #TestID,
 		"Result" -> #Outcome,
 		"Time" -> QuantityMagnitude[#AbsoluteTimeUsed, "Seconds"],
 		"MemoryChange" -> N@QuantityMagnitude[#MemoryUsed, "Megabytes"]
 	|> &;
-	"Test" -> attr /@ Association @@@ Values[obj["TestResults"]]
+	"Test" -> MapIndexed[attr, Association @@@ Values[obj["TestResults"]]]
 ];
-
 
 
 (* ::Subsubsection::Closed:: *)
@@ -41,6 +40,18 @@ NetAnalyze[net_] := "Net" -> <|
 	"Nodes" -> NetInformation[net, "LayersCount"],
 	"Layers" -> KeyMap[ToString, Association @@ Sort@Normal@NetInformation[net, "LayerTypeCounts"]]
 |>;
+
+
+
+
+SetAttributes[OutCoreEvaluate, HoldAll];
+OutCoreEvaluate[expr_] := Module[{link, result},
+	link = LinkLaunch[First@$CommandLine <> " -mathlink -noprompt"];
+	LinkWrite[link, Unevaluated@EvaluatePacket@expr];
+	result = LinkRead@link;
+	LinkClose@link;
+	Replace[result, ReturnPacket@x_ :> x]
+]
 
 
 (* ::Subsection:: *)

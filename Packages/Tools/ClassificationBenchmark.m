@@ -278,43 +278,29 @@ CheckParallelize[] := Block[
 	var := var = LaunchKernels[];
 	Sow[VerificationTest[MemberQ[{List, Symbol}, Head[var]], True, TestID -> name], "Test"];
 ];
-DataImport[path_String] := Block[
-	{name = "Data Loading", var},
+getData[path_String] := Block[
+	{name = "Loading Data", var},
 	var := var = Import@path;
 	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Return[var]
 ];
-ModelImport[path_String] := Block[
-	{name = "Model Loading", var},
+getModel[path_String] := Block[
+	{name = "Loading Model Loading", var},
 	var := var = Import@path;
 	Sow[VerificationTest[Head[var], NetChain, TestID -> name], "Test"];
 	Return[var]
 ];
-LabelImport[net_NetChain] := Block[
-	{name = "Labels Loading", var},
+getDecoder[net_] := Block[
+	{name = "Loading Decoder", var},
+	var := var = NetExtract[net, "Output"];
+	Sow[VerificationTest[Head[var], NetDecoder, TestID -> name], "Test"];
+	Return[var]
+];
+getLabels[net_] := Block[
+	{name = "Loading Labels", var},
 	var := var = NetExtract[net, "Output"][["Labels"]];
 	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Return[var]
-];
-CPUTiming[net_NetChain, sample_List] := Block[
-	{name = "CPU Timing", var},
-	var := var = {
-		"CPU Warm-Up" -> First[net[sample] // Timing],
-		"CPU Single" -> First[net[First@sample] // AbsoluteTiming],
-		"CPU Batch" -> First[net[sample] // RepeatedTiming] / 16.0
-	};
-	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
-	Return[name -> var]
-];
-GPUTiming[net_NetChain, sample_List] := Block[
-	{name = "GPU Timing", var},
-	var := var = {
-		"GPU Warm-Up" -> First[net[sample, TargetDevice -> "GPU"] // Timing],
-		"GPU Single" -> First[net[First@sample, TargetDevice -> "GPU"] // AbsoluteTiming],
-		"GPU Batch" -> First[net[sample, TargetDevice -> "GPU"] // RepeatedTiming] / 16.0
-	};
-	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
-	Return[name -> var]
 ];
 getSample[data_List] := Block[
 	{name = "Sampling", var},
@@ -326,25 +312,55 @@ getSample[data_List] := Block[
 	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Return[var]
 ];
+CPUTiming[net_NetChain, sample_List] := Block[
+	{name = "CPU Timing", var},
+	var := var = {
+		"CPU Warm-Up" -> First[net[sample] // Timing],
+		"CPU Single" -> First[net[First@sample] // AbsoluteTiming],
+		"CPU Batch" -> First[net[sample] // RepeatedTiming] / 16.0
+	};
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
+	Sow[name -> var]
+];
+GPUTiming[net_NetChain, sample_List] := Block[
+	{name = "GPU Timing", var},
+	var := var = {
+		"GPU Warm-Up" -> First[net[sample, TargetDevice -> "GPU"] // Timing],
+		"GPU Single" -> First[net[First@sample, TargetDevice -> "GPU"] // AbsoluteTiming],
+		"GPU Batch" -> First[net[sample, TargetDevice -> "GPU"] // RepeatedTiming] / 16.0
+	};
+	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
+	Sow[name -> var]
+];
 CalculationStage[dataPath_, modelPath_] := Block[
-	{model, data, labels, sample, eval, groups},
-	Reaper[
-		CheckDependency[] ;
-		
-		data = DataImport[dataPath];
-		model = ModelImport[modelPath];
-		
-		labels = LabelImport[model];
-		Sow["Classes" -> Length@labels];
-		
+	{data, model, labels, sample, eval, groups, dump},
+	dump = Reaper[
+	(*CheckDependency[];*)
+		Sow[VerificationTest[True, True, TestID -> "CalculationStage"], "Test"];
+		data = getData[dataPath];
+		model = getModel[modelPath];
+		Sow@NetAnalyze[model];
+		Sow["Actual" -> data[[All, 2]]];
+		Sow["Decoder" -> getDecoder[model]];
+		labels = getLabels[model];
+		Sow["Classes" -> labels];
+		Sow["Number" -> Length@labels];
 		sample = getSample[data];
-		Sow@CPUTiming[model, sample];
-		Sow@GPUTiming[model, sample];
+		CPUTiming[model, sample];
+		GPUTiming[model, sample];
+		
 		
 		eval = NetReplacePart[model, "Output" -> Length@labels];
+		
 		groups = Partition[First /@ data, UpTo@Ceiling[10^6 / Length@labels]];
-	]
-]
+		
+		
+		
+		Sow[VerificationTest[True, True, TestID -> "Stage Finish"], "Test"];
+		Sow[VerificationTest[Clear[data, model, eval, groups], Null, TestID -> "Fast GC"], "Test"];
+	];
+	Export["CalculationStage.dump", dump, "MX"]
+];
 
 
 

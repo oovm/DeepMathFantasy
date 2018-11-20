@@ -59,3 +59,55 @@ ClassificationUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Blo
 		"RejectionRate" -> rejections
 	|>
 ];
+ProbabilityLoss[cm_ClassifierMeasurementsObject] := Block[
+	{right, ass = First[cm]},
+	right = Flatten@Position[Inner[SameQ, ass["Predictions"], ass["TestSet", "Output"], List], True];
+	Mean[1 - cm["Probabilities"][[right]]]
+];
+AskTopN[cm_ClassifierMeasurementsObject] := Block[
+	{num = Length[First[cm]["ExtendedClasses"]]},
+	Which[
+		num <= 5, {1, 2, 3, 4},
+		num <= 10, {1, 2, 3, 5},
+		num <= 100, {1, 2, 5, 10},
+		num <= 1000, {1, 2, 5, 25},
+		num <= 10000, {1, 5, 25, 100}
+	]
+];
+ClassificationIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
+	Sequence @@ Table["Top-" <> ToString[i] -> cm["Accuracy" -> i], {i, AskTopN@cm}],
+	"LogLikelihood" -> cm@"LogLikelihood",
+	"CrossEntropyLoss" -> cm@"MeanCrossEntropy",
+	"ProbabilityLoss" -> ProbabilityLoss[cm],
+	"MeanProbability" -> Mean[cm@"Probabilities"],
+	"GeometricMeanProbability" -> cm@"GeometricMeanProbability",
+	"VarianceProbability" -> Variance[cm@"Probabilities"],
+	"ScottPi" -> cm@"ScottPi",
+	"CohenKappa" -> cm@"CohenKappa",
+	"RejectionRate" -> cm@"RejectionRate"
+|>;
+ClassificationWorstPlot[cm_ClassifierMeasurementsObject] := Block[
+	{exp},
+	exp = Take[Flatten@cm[{"WorstClassifiedExamples", "LeastCertainExamples", "IndeterminateExamples"}], UpTo[100]];
+	(*
+		tags=Transpose[{First/@exp,Last/@exp,cm["ClassifierFunction"]/@First/@exp}]
+		Grid[Partition[#,4]&@(Labeled[#1,Column[{"   true:"<>ToString@#2,"predict:"<>ToString@#3}],Top]&@@@tags),Frame\[Rule]All]
+	*)
+	Rasterize@ImageCollage[exp[[All, 1]]]
+];
+ClassificationConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
+	{class, img, matrix},
+	class = Sort@Take[Flatten[cm["TopConfusions" -> 100] /. Rule -> List] // DeleteDuplicates, UpTo[25]];
+	img = Magnify[Show[cm["ConfusionMatrixPlot" -> class], ImageSize -> 600], 2];
+	matrix = Lookup[#, class]& /@ Lookup[cm["ConfusionFunction"], class];
+	Export["ConfusionMatrix.png", img, Background -> None];
+	"Confusion" -> <|
+		"Classes" -> class,
+		"ConfusionMatrix" -> matrix
+	|>
+];
+ClassificationProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Histogram[
+	cm@"Probabilities", {0.05}, "LogCount",
+	ChartBaseStyle -> EdgeForm[Dotted], LabelingFunction -> Above,
+	PlotLabel -> Style["Expired", "Title", 14], PlotRange -> All, PlotRangePadding -> None
+]

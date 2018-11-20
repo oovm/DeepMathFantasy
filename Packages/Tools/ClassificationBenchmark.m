@@ -4,16 +4,8 @@
 (*Benchmark*)
 
 
-
-ClassificationEvaluate::usage = "";
-ClassificationIndicatorAnalyze::usage = "";
-ClassificationClassAnalyze::usage = "";
-ClassificationSpeed::usage = "";
-ClassificationProbabilitiesPlot::usage = "";
-ClassificationUncertaintyAnalyzeThenPlot::usage = "";
-ClassificationConfusionAnalyzeThenPlot::usage = "";
-ClassificationWorstPlot::usage = "";
-
+CalculationStage::usage = "";
+AnalysisStage::usage = "";
 
 (* ::Subsection:: *)
 (*Main*)
@@ -21,29 +13,22 @@ ClassificationWorstPlot::usage = "";
 
 Begin["`Benchmark`"];
 
-(* ::Subsubsection::Closed:: *)
-(*ClassificationEvaluate*)
-
-
-
-
 
 (* ::Subsubsection::Closed:: *)
-(*ClassificationClassAnalyze*)
+(*Auxiliary Function*)
+
+
 SetAttributes[Reaper, HoldAll];
 Reaper[expr_] := Block[
 	{raw = Reap[expr]},
-	{raw[[-1, 2]], raw[[-1, -1]]}
+	{raw[[-1, 2]], Association@raw[[-1, -1]]}
 ];
-AskTopN[cm_] := Block[
-	{num = Length[First[cm]["ExtendedClasses"]]},
-	Which[
-		num <= 5, {1, 2, 3, 4},
-		num <= 10, {1, 2, 3, 5},
-		num <= 100, {1, 2, 5, 10, 25},
-		num <= 1000, {1, 2, 5, 10, 25, 100},
-		num <= 10000, {1, 5, 10, 25, 100, 500}
-	]
+AskTopN[num_] := Which[
+	num <= 5, {1, 2, 3, 4},
+	num <= 10, {1, 2, 3, 5},
+	num <= 100, {1, 2, 5, 10, 25},
+	num <= 1000, {1, 2, 5, 10, 25, 100},
+	num <= 10000, {1, 5, 10, 25, 100, 500}
 ];
 Options[doFormat] = {"Mark" -> "%", "Times" -> 100, "Digit" -> 6};
 doFormat[r_, OptionsPattern[]] := Block[
@@ -57,6 +42,8 @@ doFormat[r_, OptionsPattern[]] := Block[
 ];
 
 
+(* ::Subsubsection::Closed:: *)
+(*CalculationStage*)
 
 
 CheckDependency[] := Block[
@@ -96,7 +83,7 @@ getLabels[net_] := Block[
 getSample[data_List] := Block[
 	{name = "Sampling", var},
 	var := var = If[
-		Head@data[[1, 1]] == File,
+		Head[data[[1, 1]]] === File,
 		Import /@ RandomSample[First /@ data, 16],
 		RandomSample[First /@ data, 16]
 	];
@@ -108,7 +95,7 @@ CPUTiming[net_NetChain, sample_List] := Block[
 	var := var = {
 		"CPU Warm-Up" -> First[net[sample] // Timing],
 		"CPU Single" -> First[net[First@sample] // AbsoluteTiming],
-		"CPU Batch" -> First[net[sample] // RepeatedTiming] / 16.0
+		"CPU Batch" -> First[RepeatedTiming[net[sample], 5]] / 16.0
 	};
 	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Sow[name -> var]
@@ -118,7 +105,7 @@ GPUTiming[net_NetChain, sample_List] := Block[
 	var := var = {
 		"GPU Warm-Up" -> First[net[sample, TargetDevice -> "GPU"] // Timing],
 		"GPU Single" -> First[net[First@sample, TargetDevice -> "GPU"] // AbsoluteTiming],
-		"GPU Batch" -> First[net[sample, TargetDevice -> "GPU"] // RepeatedTiming] / 16.0
+		"GPU Batch" -> First[RepeatedTiming[net[sample, TargetDevice -> "GPU"], 5]] / 16.0
 	};
 	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Sow[name -> var]
@@ -131,7 +118,7 @@ doInference[net_NetChain, img_List] := Block[
 	Sow[VerificationTest[StringQ@expt, True, TestID -> "Dumping"], "Test"]
 ];
 Options[CalculationStage] = {DumpSave -> False};
-CalculationStage[dataPath_, modelPath_] := Block[
+CalculationStage[dataPath_, modelPath_, OptionsPattern[]] := Block[
 	{data, model, labels, sample, eval, groups, dump},
 	dump = Reaper[
 	(*CheckDependency[];*)
@@ -173,7 +160,8 @@ CalculationStage[dataPath_, modelPath_] := Block[
 ];
 
 
-
+(* ::Subsubsection:: *)
+(*AnalysisStage*)
 
 
 (*ProbabilitiesMatrix Related*)
@@ -212,8 +200,6 @@ getProbabilities[attr_Association] := Block[
 	Sow[VerificationTest[ListQ[var], True, TestID -> name], "Test"];
 	Return[var]
 ];
-
-
 
 
 evalProbabilitiesPlot[pList_] := Block[
@@ -275,15 +261,12 @@ sowLogLikelihoodRate[attr_Association] := Block[
 ];
 
 
-
-
 evalIndicesMatrix[predictions_, actual_, classes_, nClass_] := Block[
-	{iMatrix, actual, predicted, coordinates, index},
+	{iMatrix, predicted, coordinates, index},
 	index = AssociationThread[classes -> Range[nClass]];
-	actual = Lookup[index, actual];
 	predicted = Lookup[index, predictions, nClass + 1];
 	iMatrix = ConstantArray[{}, {nClass, nClass + 1}];
-	coordinates = Transpose @ {actual, predicted};
+	coordinates = Transpose @ { Lookup[index, actual], predicted};
 	Function[Part[iMatrix, Apply[Sequence, #]] = #2] @@@ Normal[
 		GroupBy[Thread[coordinates -> Range[Length[coordinates]]], First -> Last]
 	];
@@ -311,7 +294,7 @@ evalTopConfusion[counts_, classes_, nClass_] := Block[
 	];
 	top = Take[Flatten@confusions // DeleteDuplicates, UpTo[25]];
 	If[
-		Head[First@classes] == Entity,
+		Head[First@classes] === Entity,
 		SortBy[classes[[top]], CommonName],
 		Sort[classes[[top]]]
 	]
@@ -319,40 +302,42 @@ evalTopConfusion[counts_, classes_, nClass_] := Block[
 getTopConfusion[attr_Association] := Block[
 	{name = "TopConfusion", var},
 	var := var = evalTopConfusion @@ Lookup[attr, {"cMatrix", "Classes", "Number"}];
-	Sow[VerificationTest[MatrixQ[var], True, TestID -> name], "Test"];
+	Sow[VerificationTest[ListQ[var], True, TestID -> name], "Test"];
 	Return[var]
 ];
 ConfusionMatrixPlot[cMatrix_, classes_, top_] := Block[
 	{subset, subMatrix, rowF, columnF, nClass, exporter, plot},
-	exporter = # -> Export[#, plot, Background -> None]&;
+	exporter = # -> Export[#, plot, Background -> None, ImageResolution -> 1200]&;
 	subset = Flatten@Map[Position[classes, #]&, top];
 	subMatrix = Part[cMatrix, subset, subset];
 	(*indeterminatecounts = Part[cMatrix, subset, -1];*)
 	rowF = Part[Map[Function[N[With[{t = Total@#}, If[Greater[t, 0], # / t, #]]]], Part[cMatrix, All, 1 ;; -2]], subset];
 	columnF = Part[Transpose[Map[Function[N[With[{t = Total@#}, If[Greater[t, 0], # / t, #]]]], Transpose[Part[cMatrix, All, 1 ;; -2]]]], subset];
-	nClass = Length@top;
-	plot = MatrixPlot[subMatrix, PlotTheme -> "Web",
+	nClass = Length@top;color = ColorData[3, "ColorList"][[6]];
+	plot = MatrixPlot[subMatrix, PlotTheme -> "Web", Mesh -> All, MeshStyle -> Dashed, Background -> None, AspectRatio -> 1,
 		PlotRangePadding -> 0, ImageSize -> 1200,
-		FrameTicksStyle -> 1.5 Min[(12 * (2 * 20)^0.25) / (nClass + 20)^0.25, 12],
-		FrameLabel -> Style[#, "Title", 24]& /@ {"Ground Truth", "Predicted Lable"},
+		FrameTicksStyle -> 2 Min[(12 * (2 * 20)^0.25) / (nClass + 20)^0.25, 12],
+		FrameLabel -> (Style[#, "Title", 36]& /@ {"Ground Truth", "Predicted Label"}),
 		FrameTicks -> {
-			Transpose@{Range[nClass], Map[Rotate[#, 0.]&, top]},
+			Transpose@{Range[nClass], Map[Rotate[Style[#, color], 0]&, top]},
 			Transpose@{
 				Range @ nClass,
 				Map[Function[Rotate[#, Pi / 2]], Total @ subMatrix]
 			},
 			Transpose@{Range@nClass, Map[Total, subMatrix]},
-			Transpose@{Range @ nClass, Map[Function[Rotate[#, Pi / 2]], top]}
+			Transpose@{Range @ nClass, Map[Function[Rotate[Style[#, color], Pi / 2]], top]}
 		},
 		Epilog -> Table[
 			Inset[
-				Graphics[{Opacity @ 1., Text[subMatrix[[j, i]], {0.5, 0.5}], Opacity @ 0., Rectangle[{0, 0}, {1, 1}]}],
+				Graphics[{Opacity[1], Text[Style[subMatrix[[j, i]], 24], {0.5, 0.5}], Opacity[0], Rectangle[{0, 0}, {1, 1}]}],
 				{i - 0.5, nClass + (-j) + 0.5}, Automatic, {1., 1.}
 			],
 			{i, 1, nClass},
 			{j, 1, nClass}
 		]
 	];
+	Sow["TopConfusionMatrix"->subMatrix];
+	Sow["TopConfusionClasses"->top];
 	Sow[exporter["ConfusionMatrix.png"]];
 ];
 doConfusionMatrixPlot[attr_Association] := Block[
@@ -363,7 +348,7 @@ doConfusionMatrixPlot[attr_Association] := Block[
 evalClassIndicator[iMatrix_, classes_, count_] := Block[
 	{ex, eval},
 	ex = MachineLearning`file115ClassifierPredictor`PackagePrivate`iClassifierMeasurementsObject[<|"IndicesMatrix" -> iMatrix, "ExtendedClasses" -> classes, "Weights" -> Array[1&, count]|>];
-	eval[sample_] := AssociationMap[First@ex[# -> sample]&, {
+	eval[sample_] := sample -> Map[# -> First@ex[# -> sample]& , {
 		"TruePositiveRate",
 		"TrueNegativeRate",
 		"FalsePositiveRate",
@@ -376,7 +361,7 @@ evalClassIndicator[iMatrix_, classes_, count_] := Block[
 		"Markedness",
 		"MatthewsCorrelationCoefficient"
 	}];
-	Sow["ClassScore" -> eval /@ classes]
+	Sow["ClassIndicator" -> Map[eval, classes]];
 ];
 sowClassIndicator[attr_Association] := Block[
 	{name = "ClassScore", var},
@@ -402,7 +387,7 @@ AnalysisStage[OptionsPattern[]] := Block[
 		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing","pMatrix","Prediction"}*)
 		
 		
-		sowTopN[$Register, {1, 2, 5, 10, 25, 100}];
+		sowTopN[$Register, AskTopN[$Register["Number"]]];
 		$Register["Probabilities"] = getProbabilities@$Register;
 		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing","pMatrix","Probabilities","Prediction"}*)
 		
@@ -420,7 +405,7 @@ AnalysisStage[OptionsPattern[]] := Block[
 		$Register["cMatrix"] = getConfusionMatrix@$Register;
 		(*{"Classes","Number","Actual","Count","Prediction","Probabilities","iMatrix","cMatrix"}*)
 		$Register["cTop"] = getTopConfusion@$Register;
-		(*{"Classes","Number","Actual","Count","Prediction","Probabilities","iMatrix","cMatrix","TopConfusion"}*)
+		(*{"Classes","Number","Actual","Count","Prediction","Probabilities","iMatrix","cMatrix","cTop"}*)
 		
 		
 		doConfusionMatrixPlot[$Register] ;
@@ -428,15 +413,12 @@ AnalysisStage[OptionsPattern[]] := Block[
 		Sow[VerificationTest[True, True, TestID -> "Stage Finish"], "Test"];
 		Sow[VerificationTest[Clear[$Register], Null, TestID -> "Fast GC"], "Test"];
 	];
-	Export["AnalysisStage.dump", dump]
+	Export["AnalysisStage.dump", dump, "MX"]
 ];
 
 
-
-
-
-
-
+(* ::Subsubsection::Closed:: *)
+(*ReportStage*)
 
 
 $ReportTemplate = StringTemplate["\
@@ -508,9 +490,6 @@ makeReport[record_] := Block[
 		"TestReport" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ TestReportF, "\n"]
 	|>]
 ];
-
-
-
 
 
 (* ::Subsection:: *)

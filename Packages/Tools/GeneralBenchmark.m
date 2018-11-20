@@ -24,6 +24,7 @@ TestReportAnalyze[obj_TestReportObject] := Block[
 		"TestID" -> #TestID,
 		"Result" -> #Outcome,
 		"Time" -> QuantityMagnitude[#AbsoluteTimeUsed, "Seconds"],
+		"CPUTime" -> QuantityMagnitude[#CPUTimeUsed, "Seconds"],
 		"MemoryChange" -> N@QuantityMagnitude[#MemoryUsed, "Megabytes"]
 	|> &;
 	"Test" -> MapIndexed[attr, Association @@@ Values[obj["TestResults"]]]

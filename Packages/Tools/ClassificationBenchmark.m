@@ -322,7 +322,7 @@ getProbabilities[attr_Association] := Block[
 
 evalProbabilitiesPlot[pList_] := Block[
 	{exporter, count, plot},
-	exporter = Export[#, plot, Background -> None];
+	exporter = Export[#, plot, Background -> None]&;
 	count = Reverse@BinCounts[pList, {0, 100 / 100, 5 / 100}];
 	plot = RectangleChart[
 	(*Inner[Labeled[{1,#1},#2,Below]&,count,percentage,List],*)
@@ -342,13 +342,116 @@ evalProbabilitiesPlot[pList_] := Block[
 		Ticks -> {{#, Text@Style[StringRiffle[Insert[IntegerDigits[1000 - # / 2], ".", -2], ""] <> "%", Bold], {0, 0}}& /@ Range[0, 100, 10], Automatic},
 		Epilog -> Text[Style["High Precision Classification Curve", "Title", 30], Offset[{-420, -20}, Scaled[{1, 1}]], {-1, 0}]
 	];
-	Sow[exporter@"High Precision Classification Curve.png"]
+	Sow[exporter@"High Precision Classification Curve.png"];
 ];
 doProbabilitiesPlot[attr_Association] := Block[
 	{name = "ProbabilitiesPlot", var},
 	var := var = evalProbabilities @@ Lookup[$Register, {"Probabilities"}];
-	Sow[VerificationTest[ListQ[var], True, TestID -> name], "Test"];
+	Sow[VerificationTest[var, Null, TestID -> name], "Test"];
 ];
+evalProbabilityLoss[predictions_, actual_, p_] := Block[
+	{pos = Position[Inner[SameQ, predictions, actual, List], True]},
+	Sow["pLoss" -> <|
+		"ProbabilityLoss" -> Mean[1 - p[[Flatten@pos]]],
+		"ProbabilityMean" -> Mean@p,
+		"ProbabilityGeometricMean" -> GeometricMean@p,
+		"ProbabilityVariance" -> Variance@p
+	|>];
+];
+sowProbabilityLoss[attr_Association] := Block[
+	{name = "ProbabilityLoss", var},
+	var := var = evalProbabilityLoss @@ Lookup[$Register, {"Prediction", "Actual", "Probabilities", "Actual"}];
+	Sow[VerificationTest[var, Null, TestID -> name], "Test"];
+	Return[var]
+];
+evalLogLikelihoodRate[pList_, count_] := Block[
+	{llr = Mean@Log@pList},
+	Sow["logLike" -> <|
+		"Perplexity" -> E^-llr,
+		"CrossEntropyLoss" -> -llr,
+		"LogLikelihood" -> count llr
+	|>];
+];
+sowLogLikelihoodRate[attr_Association] := Block[
+	{name = "LogLikelihoodRate", var},
+	var := var = evalLogLikelihoodRate @@ Lookup["Probabilities"];
+	Sow[VerificationTest[var, Null, TestID -> name], "Test"];
+];
+
+
+
+
+
+
+
+
+
+
+MatrixPlot[countmatrix,
+	PlotRangePadding -> None, ImageSize -> 1200, FrameTicksStyle -> fontsize, FrameTicks -> {
+	Transpose[
+		{Range[nclass], Map[Rotate[#, 0.]&, classes]}
+	],
+	columntotal = Total @ countmatrix;
+	Transpose[
+		{
+			Range @ nclass,
+			Map[Function[Rotate[#, Pi / 2]], columntotal]
+		}
+	],
+	rowtotal = Map[Total, countmatrix];
+	If[
+		Or[Greater[Total @ indeterminatecounts, 0],
+			Greater[threshold, 0]
+		],
+		Transpose[
+			{
+				Range @ nclass,
+				MapThread[
+					Function @ Row @ {#, " (", #2, ")"},
+					{rowtotal, indeterminatecounts}
+				]
+			}
+		],
+		Transpose @ {Range @ nclass, rowtotal}
+	],
+	Transpose[
+		{Range @ nclass, Map[Function[Rotate[#, Pi / 2]], classes]}
+	]
+},
+	FrameLabel -> {
+		StringJoin["actual ", classname],
+		StringJoin["predicted ", classname]
+	},
+	Epilog -> Table[
+		Inset[
+			Graphics[
+				{
+					Opacity @ 1.,
+					Text[countmatrix[[j, i]], {0.5, 0.5}],
+					Opacity @ 0.,
+					Rectangle[{0, 0}, {1, 1}]
+				}
+			],
+			{i - 0.5, nclass + (-j) + 0.5},
+			Automatic,
+			{1., 1.}
+		],
+		{i, 1, nclass},
+		{j, 1, nclass}
+	]
+]
+
+
+
+
+
+
+
+
+
+
+
 
 
 

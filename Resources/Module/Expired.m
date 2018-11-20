@@ -26,6 +26,44 @@ ClassificationBenchmark[net_, data_List, top_List : {1}] := Block[
 	|>
 ];
 
+
+
+
+
+
+
+
+ClassificationEvaluate[net_, data_] := Block[
+	{classes, $now = Now, $eval},
+	classes = NetExtract[net, "Output"][["Labels"]];
+	$eval = net[First /@ data, "Probabilities", TargetDevice -> "GPU"];
+	$now = QuantityMagnitude[Now - $now, "Seconds"];
+	MachineLearning`file115ClassifierPredictor`PackagePrivate`fillClassifierMeasurementsObject[
+		MachineLearning`PackageScope`NetToClassifierFunction@net,
+		{Range@Length@data, Last /@ data},
+		First@Keys@ReverseSort[#]& /@ $eval,
+		Log[Values /@ $eval],
+		classes,
+		SparseArray@Array[1&, Length@data],
+		$now
+	]
+];
+
+
+ClassificationClassAnalyze[cm_ClassifierMeasurementsObject] := Block[
+	{attr, tiny},
+	attr = <|
+		"Count" -> Total /@ cm@"ConfusionFunction",
+		"TPRate" -> cm@"Recall",
+		"TNRate" -> cm@"Specificity",
+		"FPRate" -> cm@"FalsePositiveRate",
+		"FNRate" -> cm@"FalseNegativeRate",
+		"F1Score" -> cm@"F1Score"
+	|>;
+	tiny = Sort@Keys@TakeSmallest[attr["F1Score"], UpTo[25]];
+	"Dual" -> Query[All, Key /@ tiny]@attr
+];
+
 ClassificationUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
 	{thresholds, accuracies, rejections, pts, plot},
 	thresholds = Join[Range[0.25, 0.80, 0.05], Range[0.81, 0.99, 0.01], Range[0.991, 0.999, 0.001], Range[0.9991, 0.9999, 0.0001]];

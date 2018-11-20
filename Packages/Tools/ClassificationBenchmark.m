@@ -30,10 +30,11 @@ Begin["`Benchmark`"];
 
 (* ::Subsubsection::Closed:: *)
 (*ClassificationClassAnalyze*)
-
-
-
-
+SetAttributes[Reaper, HoldAll];
+Reaper[expr_] := Block[
+	{raw = Reap[expr]},
+	{raw[[-1, 2]], raw[[-1, -1]]}
+];
 AskTopN[cm_] := Block[
 	{num = Length[First[cm]["ExtendedClasses"]]},
 	Which[
@@ -44,11 +45,6 @@ AskTopN[cm_] := Block[
 		num <= 10000, {1, 5, 10, 25, 100, 500}
 	]
 ];
-
-
-
-
-
 Options[doFormat] = {"Mark" -> "%", "Times" -> 100, "Digit" -> 6};
 doFormat[r_, OptionsPattern[]] := Block[
 	{num, dot, mark, t, digit},
@@ -62,87 +58,7 @@ doFormat[r_, OptionsPattern[]] := Block[
 
 
 
-$ClassificationReportTemplate = StringTemplate["\
-# `Name`
-![Task](https://img.shields.io/badge/Task-Classifation-Orange.svg)
-![Size](https://img.shields.io/badge/Size-`ShieldSize`-blue.svg)
-![Accuracy](https://img.shields.io/badge/Accuracy-`ShieldAccuracy`-brightgreen.svg)
-![Speed](https://img.shields.io/badge/Speed-`ShieldSpeed`-ff69b4.svg)
 
-Automatically generated on `Date`
-
-## Network structure:
-- Network Size: **`NetSize` MB**
-- Parameters: **`Parameters`**
-- Nodes Count: **`Nodes`**
-- Speed: **`Speed`/sample**
-- Layers:
-`NetLayers`
-
-## Accuracy Curve
-![Classification Curve.png](`img_1`)
-
-![High Precision Classification Curve.png](`img_2`)
-
-## Main Indicator
-`Indicator`
-![Accuracy Rejection Curve.png](`img_3`)
-
-## Class Indicator
-`Dual`
-|-------|-------|--------|--------|--------|--------|---------|
-`DualScore`
-
-## Hard Class
-![ConfusionMatrix.png](`img_4`)
-
-## Evaluation Report
-`Test`
-|-------|--------|--------|------|--------------|
-`TestReport`
-"];
-ClassificationReport[record_] := Block[
-	{line, md, indicatorF, DualScoreF, line2, TestReportF, speed},
-	speed = doFormat[record["Speed"], "Times" -> 1, "Digit" -> 4, "Mark" -> " ms"];
-	indicatorF = indicatorF = MapAt[doFormat, Values@KeyDrop[record["Indicator"], "Speed"], List /@ {1, 2, 3, 4, 8, 9, -1}];
-	line = Transpose@Join[{Keys@First@Values@record["Dual"]}, Values /@ Values@record["Dual"]];
-	DualScoreF = MapAt[doFormat[#, "Times" -> 1, "Mark" -> ""]&, MapAt[doFormat, line, {All, 3 ;; 6}], {All, -1}];
-	line2 = MapAt[doFormat[#, "Times" -> 1, "Mark" -> " s"]&, Values /@ record["Test"], {All, -2}];
-	TestReportF = MapAt[If[# > 0, "+", "-"] <> doFormat[#, "Times" -> 1, "Mark" -> " MB"]&, line2, {All, -1}];
-	md = $ClassificationReportTemplate[<|
-		"ShieldSize" -> ToString[N@FromDigits@RealDigits[record["Net", "Size"], 10, 5]] <> "%20MB",
-		"ShieldAccuracy" -> doFormat[record["Indicator", "Top-1"], "Digit" -> 5, "Mark" -> "%25"],
-		"ShieldSpeed" -> StringReplace[speed, " " -> "%20"],
-		"Name" -> record["Name"],
-		"Date" -> record["Date"],
-		"NetSize" -> record["Net", "Size"],
-		"Parameters" -> StringRiffle[Reverse@Flatten@Riffle[Partition[Reverse@IntegerDigits@record["Net", "Parameters"], UpTo[3]], " "], ""],
-		"Nodes" -> record["Net", "Nodes"],
-		"Speed" -> speed,
-		"NetLayers" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Net", "Layers"], Values@record["Net", "Layers"], StringJoin],
-		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@KeyDrop[record["Indicator"], "Speed"], indicatorF, StringJoin],
-		"img_1" -> record["Image", "Classification Curve.png"],
-		"img_2" -> record["Image", "High Precision Classification Curve.png"],
-		"img_3" -> record["Image", "Accuracy Rejection Curve.png"],
-		"img_4" -> record["Image", "ConfusionMatrix.png"],
-		"Dual" -> StringRiffle[Prepend[Keys@record["Dual"], "Class"], {"| ", " | ", " |"}],
-		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ DualScoreF, "\n"],
-		"Test" -> StringRiffle[Keys@First@record["Test"], {"| ", " | ", " |"}],
-		"TestReport" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ TestReportF, "\n"]
-	|>]
-];
-
-
-
-
-
-
-
-SetAttributes[Reaper, HoldAll];
-Reaper[expr_] := Block[
-	{raw = Reap[expr]},
-	{raw[[-1, 2]], raw[[-1, -1]]}
-];
 CheckDependency[] := Block[
 	{name = "Check Dependency", var},
 	var := var = {<< MachineLearning`, << NeuralNetworks`, << MXNetLink`, << DeepMath`};
@@ -441,8 +357,78 @@ ConfusionMatrixPlot[cMatrix_, classes_, top_] := Block[
 ];
 doConfusionMatrixPlot[attr_Association] := Block[
 	{name = "ConfusionMatrixPlot", var},
-	var := var = ConfusionMatrixPlot @@ Lookup[attr, {"cMatrix", "Classes", "TopConfusion"}];
+	var := var = ConfusionMatrixPlot @@ Lookup[attr, {"cMatrix", "Classes", "cTop"}];
 	Sow[VerificationTest[var, Null, TestID -> name], "Test"];
+];
+evalClassIndicator[iMatrix_, classes_, count_] := Block[
+	{ex, eval},
+	ex = MachineLearning`file115ClassifierPredictor`PackagePrivate`iClassifierMeasurementsObject[<|"IndicesMatrix" -> iMatrix, "ExtendedClasses" -> classes, "Weights" -> Array[1&, count]|>];
+	eval[sample_] := AssociationMap[First@ex[# -> sample]&, {
+		"TruePositiveRate",
+		"TrueNegativeRate",
+		"FalsePositiveRate",
+		"FalseNegativeRate",
+		"TruePositiveAccuracy",
+		"TrueNegativeAccuracy",
+		"FalseDiscoveryRate",
+		"F1Score",
+		"Informedness",
+		"Markedness",
+		"MatthewsCorrelationCoefficient"
+	}];
+	Sow["ClassScore" -> eval /@ classes]
+];
+sowClassIndicator[attr_Association] := Block[
+	{name = "ClassScore", var},
+	var := var = evalClassIndicator @@ Lookup[attr, {"iMatrix", "cTop", "Count"}];
+	Sow[VerificationTest[var, Null, TestID -> name], "Test"];
+];
+Options[AnalysisStage] = {};
+AnalysisStage[OptionsPattern[]] := Block[
+	{dump, $Register},
+	dump = Reaper[
+		Sow[VerificationTest[True, True, TestID -> "AnalysisStage"], "Test"];
+		CheckParallelize[];
+		$Register = Association[Last@Import["CalculationStage.dump"]];
+		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing"}*)
+		
+		
+		$Register["pMatrix"] = getProbabilitiesMatrix[];
+		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing","pMatrix"}*)
+		
+		
+		Scan[Sow[# -> Lookup[$Register, #]]&, {"Net", "Number", "CPU Timing", "GPU Timing"}];
+		$Register["Prediction"] = getPrediction@$Register;
+		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing","pMatrix","Prediction"}*)
+		
+		
+		sowTopN[$Register, {1, 2, 5, 10, 25, 100}];
+		$Register["Probabilities"] = getProbabilities@$Register;
+		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing","pMatrix","Probabilities","Prediction"}*)
+		
+		
+		useless = {"Net", "CPU Timing", "GPU Timing", "pMatrix", "Decoder"};
+		Sow[VerificationTest[Length@KeyDropFrom[$Register, useless], 6, TestID -> "Fast GC"], "Test"];
+		(*{"Classes","Number","Actual","Count","Prediction","Probabilities"}*)
+		
+		
+		doProbabilitiesPlot[$Register];
+		sowProbabilityLoss[$Register];
+		sowLogLikelihoodRate[$Register];
+		$Register["iMatrix"] = getIndicesMatrix@$Register;
+		(*{"Classes","Number","Actual","Count","Prediction","Probabilities","iMatrix"}*)
+		$Register["cMatrix"] = getConfusionMatrix@$Register;
+		(*{"Classes","Number","Actual","Count","Prediction","Probabilities","iMatrix","cMatrix"}*)
+		$Register["cTop"] = getTopConfusion@$Register;
+		(*{"Classes","Number","Actual","Count","Prediction","Probabilities","iMatrix","cMatrix","TopConfusion"}*)
+		
+		
+		doConfusionMatrixPlot[$Register] ;
+		sowClassIndicator[$Register];
+		Sow[VerificationTest[True, True, TestID -> "Stage Finish"], "Test"];
+		Sow[VerificationTest[Clear[$Register], Null, TestID -> "Fast GC"], "Test"];
+	];
+	Export["AnalysisStage.dump", dump]
 ];
 
 
@@ -453,8 +439,75 @@ doConfusionMatrixPlot[attr_Association] := Block[
 
 
 
+$ReportTemplate = StringTemplate["\
+# `Name`
+![Task](https://img.shields.io/badge/Task-Classifation-Orange.svg)
+![Size](https://img.shields.io/badge/Size-`ShieldSize`-blue.svg)
+![Accuracy](https://img.shields.io/badge/Accuracy-`ShieldAccuracy`-brightgreen.svg)
+![Speed](https://img.shields.io/badge/Speed-`ShieldSpeed`-ff69b4.svg)
 
+Automatically generated on `Date`
 
+## Network structure:
+- Network Size: **`NetSize` MB**
+- Parameters: **`Parameters`**
+- Nodes Count: **`Nodes`**
+- Speed: **`Speed`/sample**
+- Layers:
+`NetLayers`
+
+## Accuracy Curve
+![Classification Curve.png](`img_1`)
+
+![High Precision Classification Curve.png](`img_2`)
+
+## Main Indicator
+`Indicator`
+![Accuracy Rejection Curve.png](`img_3`)
+
+## Class Indicator
+`Dual`
+|-------|-------|--------|--------|--------|--------|---------|
+`DualScore`
+
+## Hard Class
+![ConfusionMatrix.png](`img_4`)
+
+## Evaluation Report
+`Test`
+|-------|--------|--------|------|--------------|
+`TestReport`
+"];
+makeReport[record_] := Block[
+	{line, md, indicatorF, DualScoreF, line2, TestReportF, speed},
+	speed = doFormat[record["Speed"], "Times" -> 1, "Digit" -> 4, "Mark" -> " ms"];
+	indicatorF = indicatorF = MapAt[doFormat, Values@KeyDrop[record["Indicator"], "Speed"], List /@ {1, 2, 3, 4, 8, 9, -1}];
+	line = Transpose@Join[{Keys@First@Values@record["Dual"]}, Values /@ Values@record["Dual"]];
+	DualScoreF = MapAt[doFormat[#, "Times" -> 1, "Mark" -> ""]&, MapAt[doFormat, line, {All, 3 ;; 6}], {All, -1}];
+	line2 = MapAt[doFormat[#, "Times" -> 1, "Mark" -> " s"]&, Values /@ record["Test"], {All, -2}];
+	TestReportF = MapAt[If[# > 0, "+", "-"] <> doFormat[#, "Times" -> 1, "Mark" -> " MB"]&, line2, {All, -1}];
+	md = $ReportTemplate[<|
+		"ShieldSize" -> ToString[N@FromDigits@RealDigits[record["Net", "Size"], 10, 5]] <> "%20MB",
+		"ShieldAccuracy" -> doFormat[record["Indicator", "Top-1"], "Digit" -> 5, "Mark" -> "%25"],
+		"ShieldSpeed" -> StringReplace[speed, " " -> "%20"],
+		"Name" -> record["Name"],
+		"Date" -> record["Date"],
+		"NetSize" -> record["Net", "Size"],
+		"Parameters" -> StringRiffle[Reverse@Flatten@Riffle[Partition[Reverse@IntegerDigits@record["Net", "Parameters"], UpTo[3]], " "], ""],
+		"Nodes" -> record["Net", "Nodes"],
+		"Speed" -> speed,
+		"NetLayers" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@record["Net", "Layers"], Values@record["Net", "Layers"], StringJoin],
+		"Indicator" -> Inner[StringJoin["  - ", #1, ": **", ToString[#2], "**\n"]&, Keys@KeyDrop[record["Indicator"], "Speed"], indicatorF, StringJoin],
+		"img_1" -> record["Image", "Classification Curve.png"],
+		"img_2" -> record["Image", "High Precision Classification Curve.png"],
+		"img_3" -> record["Image", "Accuracy Rejection Curve.png"],
+		"img_4" -> record["Image", "ConfusionMatrix.png"],
+		"Dual" -> StringRiffle[Prepend[Keys@record["Dual"], "Class"], {"| ", " | ", " |"}],
+		"DualScore" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ DualScoreF, "\n"],
+		"Test" -> StringRiffle[Keys@First@record["Test"], {"| ", " | ", " |"}],
+		"TestReport" -> StringRiffle[StringRiffle[#, {"| ", " | ", " |"}]& /@ TestReportF, "\n"]
+	|>]
+];
 
 
 

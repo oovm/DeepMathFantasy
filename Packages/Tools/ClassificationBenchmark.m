@@ -58,57 +58,9 @@ ClassificationClassAnalyze[cm_ClassifierMeasurementsObject] := Block[
 	"Dual" -> Query[All, Key /@ tiny]@attr
 ];
 
-ClassificationProbabilitiesPlot[cm_ClassifierMeasurementsObject] := Block[
-	{count, plot},
-	count = Reverse@BinCounts[cm@"Probabilities", {0, 100 / 100, 5 / 100}];
-	plot = RectangleChart[
-	(*Inner[Labeled[{1,#1},#2,Below]&,count,percentage,List],*)
-		Table[{5, c}, {c, count}], ImageSize -> 1200,
-		ChartLabels -> {Placed[count, Above]}, ScalingFunctions -> "Log",
-		BarSpacing -> 0, ChartStyle -> "CMYKColors", PlotRange -> {{0, 100}, All}
-	(*ColorFunction\[Rule]Function[{x,y},ColorData["Pastel"][1-y^(1/4)]]*),
-		Ticks -> {{#, Text@Style[ToString[100 - #] <> "%", Bold], {0, 0}}& /@ Range[0, 100, 5], Automatic},
-		Epilog -> Text[Style["Classification Curve", "Title", 30], Offset[{-250, -20}, Scaled[{1, 1}]], {-1, 0}]
-	];
-	Export["Classification Curve.png", plot, Background -> None];
-	count = Reverse@BinCounts[cm@"Probabilities", {95, 100, 0.1} / 100];
-	plot = RectangleChart[
-		Table[{2, c}, {c, count}], ImageSize -> 1200,
-		ChartLabels -> {Placed[count, Above]}, ScalingFunctions -> "Log",
-		BarSpacing -> 0, ChartStyle -> "CandyColors", PlotRange -> {{0, 100}, All},
-		Ticks -> {{#, Text@Style[StringRiffle[Insert[IntegerDigits[1000 - # / 2], ".", -2], ""] <> "%", Bold], {0, 0}}& /@ Range[0, 100, 10], Automatic},
-		Epilog -> Text[Style["High Precision Classification Curve", "Title", 30], Offset[{-420, -20}, Scaled[{1, 1}]], {-1, 0}]
-	];
-	Export["High Precision Classification Curve.png", plot, Background -> None];
-];
-(*Histogram[
-	cm@"Probabilities", {0.05}, "LogCount",
-	ChartBaseStyle -> EdgeForm[Dotted], LabelingFunction -> Above,
-	PlotLabel -> Style["Expired", "Title", 14], PlotRange -> All, PlotRangePadding -> None
-]*)
 
 
-ClassificationConfusionAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Block[
-	{class, img, matrix},
-	class = Sort@Take[Flatten[cm["TopConfusions" -> 100] /. Rule -> List] // DeleteDuplicates, UpTo[25]];
-	img = Magnify[Show[cm["ConfusionMatrixPlot" -> class], ImageSize -> 600], 2];
-	matrix = Lookup[#, class]& /@ Lookup[cm["ConfusionFunction"], class];
-	Export["ConfusionMatrix.png", img, Background -> None];
-	"Confusion" -> <|
-		"Classes" -> class,
-		"ConfusionMatrix" -> matrix
-	|>
-];
 
-ClassificationWorstPlot[cm_ClassifierMeasurementsObject] := Block[
-	{exp},
-	exp = Take[Flatten@cm[{"WorstClassifiedExamples", "LeastCertainExamples", "IndeterminateExamples"}], UpTo[100]];
-	(*
-		tags=Transpose[{First/@exp,Last/@exp,cm["ClassifierFunction"]/@First/@exp}]
-		Grid[Partition[#,4]&@(Labeled[#1,Column[{"   true:"<>ToString@#2,"predict:"<>ToString@#3}],Top]&@@@tags),Frame\[Rule]All]
-	*)
-	Rasterize@ImageCollage[exp[[All, 1]]]
-];
 
 AskTopN[cm_] := Block[
 	{num = Length[First[cm]["ExtendedClasses"]]},
@@ -120,25 +72,9 @@ AskTopN[cm_] := Block[
 		num <= 10000, {1, 5, 25, 100}
 	]
 ];
-ProbabilityLoss[cm_] := Block[
-	{right, ass = First[cm]},
-	right = Flatten@Position[Inner[SameQ, ass["Predictions"], ass["TestSet", "Output"], List], True];
-	Mean[1 - cm["Probabilities"][[right]]]
-];
-ClassificationIndicatorAnalyze[cm_ClassifierMeasurementsObject] := "Indicator" -> <|
-	Sequence @@ Table["Top-" <> ToString[i] -> cm["Accuracy" -> i], {i, AskTopN@cm}],
-	"LogLikelihood" -> cm@"LogLikelihood",
-	"CrossEntropyLoss" -> cm@"MeanCrossEntropy",
-	"ProbabilityLoss" -> ProbabilityLoss[cm],
-	"MeanProbability" -> Mean[cm@"Probabilities"],
-	"GeometricMeanProbability" -> cm@"GeometricMeanProbability",
-	"VarianceProbability" -> Variance[cm@"Probabilities"],
-	"ScottPi" -> cm@"ScottPi",
-	"CohenKappa" -> cm@"CohenKappa",
-	"RejectionRate" -> cm@"RejectionRate"
-|>;
 
-ClassificationSpeed[cm_ClassifierMeasurementsObject] := "Speed" -> 1000 cm@"BatchEvaluationTime";
+
+
 
 
 Options[doFormat] = {"Mark" -> "%", "Times" -> 100, "Digit" -> 6};
@@ -233,7 +169,7 @@ ClassificationReport[record_] := Block[
 SetAttributes[Reaper, HoldAll];
 Reaper[expr_] := Block[
 	{raw = Reap@Reap[expr, "Test"]},
-	{raw[[1, 2, 1]], raw[[2, 2]]}
+	{raw[[1, -1, 1]], First@Sort[Last@raw]}
 ];
 CheckDependency[] := Block[
 	{name = "Check Dependency", var},
@@ -299,19 +235,33 @@ GPUTiming[net_NetChain, sample_List] := Block[
 	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
 	Sow[name -> var]
 ];
+doInference[net_NetChain, img_List] := Block[
+	{var, expt},
+	var := var = net[img, TargetDevice -> "GPU"];
+	expt := expt = Export["Inferencing.dump", var, "MX"];
+	Sow[VerificationTest[MatrixQ@var, True, TestID -> "Inferencing"], "Test"];
+	Sow[VerificationTest[StringQ@expt, True, TestID -> "Dumping"], "Test"]
+];
+Options[CalculationStage] = {DumpSave -> False};
 CalculationStage[dataPath_, modelPath_] := Block[
 	{data, model, labels, sample, eval, groups, dump},
 	dump = Reaper[
 	(*CheckDependency[];*)
 		Sow[VerificationTest[True, True, TestID -> "CalculationStage"], "Test"];
-		data = getData[dataPath];
+		data = getData[dataPath][[1 ;; 100]];
 		model = getModel[modelPath];
 		Sow@NetAnalyze[model];
-		Sow["Actual" -> data[[All, 2]]];
+		
 		Sow["Decoder" -> getDecoder[model]];
 		labels = getLabels[model];
 		Sow["Classes" -> labels];
 		Sow["Number" -> Length@labels];
+		
+		Sow["Actual" -> data[[All, 2]]];
+		Sow["Count" -> Length@data];
+		
+		
+		
 		sample = getSample[data];
 		CPUTiming[model, sample];
 		GPUTiming[model, sample];
@@ -319,7 +269,12 @@ CalculationStage[dataPath_, modelPath_] := Block[
 		
 		eval = NetReplacePart[model, "Output" -> Length@labels];
 		
-		groups = Partition[First /@ data, UpTo@Ceiling[10^6 / Length@labels]];
+		(*groups = Partition[First /@ data, UpTo@Ceiling[10^6 / Length@labels]];*)
+		If[TrueQ@OptionValue[DumpSave],
+			doInference[eval, First /@ data, Ceiling[10^6 / Length@labels]],
+			doInference[eval, First /@ data]
+		];
+		
 		
 		
 		
@@ -333,7 +288,7 @@ CalculationStage[dataPath_, modelPath_] := Block[
 
 
 
-
+(*ProbabilitiesMatrix Related*)
 evalPrediction[decoder_, pMatrix_] := decoder@pMatrix;
 getPrediction[attr_Association] := Block[
 	{name = "Prediction", var},
@@ -364,6 +319,36 @@ getProbabilities[attr_Association] := Block[
 	Return[var]
 ];
 
+
+evalProbabilitiesPlot[pList_] := Block[
+	{exporter, count, plot},
+	exporter = Export[#, plot, Background -> None];
+	count = Reverse@BinCounts[pList, {0, 100 / 100, 5 / 100}];
+	plot = RectangleChart[
+	(*Inner[Labeled[{1,#1},#2,Below]&,count,percentage,List],*)
+		Table[{5, c}, {c, count}], ImageSize -> 1200,
+		ChartLabels -> {Placed[count, Above]}, ScalingFunctions -> "Log",
+		BarSpacing -> 0, ChartStyle -> "CMYKColors", PlotRange -> {{0, 100}, All}
+	(*ColorFunction\[Rule]Function[{x,y},ColorData["Pastel"][1-y^(1/4)]]*),
+		Ticks -> {{#, Text@Style[ToString[100 - #] <> "%", Bold], {0, 0}}& /@ Range[0, 100, 5], Automatic},
+		Epilog -> Text[Style["Classification Curve", "Title", 30], Offset[{-250, -20}, Scaled[{1, 1}]], {-1, 0}]
+	];
+	Sow[exporter@"Classification Curve.png"];
+	count = Reverse@BinCounts[pList, {95, 100, 0.1} / 100];
+	plot = RectangleChart[
+		Table[{2, c}, {c, count}], ImageSize -> 1200,
+		ChartLabels -> {Placed[count, Above]}, ScalingFunctions -> "Log",
+		BarSpacing -> 0, ChartStyle -> "CandyColors", PlotRange -> {{0, 100}, All},
+		Ticks -> {{#, Text@Style[StringRiffle[Insert[IntegerDigits[1000 - # / 2], ".", -2], ""] <> "%", Bold], {0, 0}}& /@ Range[0, 100, 10], Automatic},
+		Epilog -> Text[Style["High Precision Classification Curve", "Title", 30], Offset[{-420, -20}, Scaled[{1, 1}]], {-1, 0}]
+	];
+	Sow[exporter@"High Precision Classification Curve.png"]
+];
+doProbabilitiesPlot[attr_Association] := Block[
+	{name = "ProbabilitiesPlot", var},
+	var := var = evalProbabilities @@ Lookup[$Register, {"Probabilities"}];
+	Sow[VerificationTest[ListQ[var], True, TestID -> name], "Test"];
+];
 
 
 

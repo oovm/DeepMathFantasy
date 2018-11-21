@@ -27,7 +27,7 @@ TestReportAnalyze[obj_TestReportObject] := Block[
 		"CPUTime" -> QuantityMagnitude[#CPUTimeUsed, "Seconds"],
 		"MemoryChange" -> N@QuantityMagnitude[#MemoryUsed, "Megabytes"]
 	|> &;
-	"Test" -> MapIndexed[attr, Association @@@ Values[obj["TestResults"]]]
+	MapIndexed[attr, Association @@@ Values[obj["TestResults"]]]
 ];
 
 
@@ -52,7 +52,13 @@ OutCoreEvaluate[expr_] := Module[{link, result},
 	result = LinkRead@link;
 	LinkClose@link;
 	Replace[result, ReturnPacket@x_ :> x]
-]
+];
+
+
+UploadSMMS[path_String] := Block[
+	{body = "smfile" -> <|"Content" -> File[path], "Name" -> FileNameTake[path]|>},
+	URLExecute[HTTPRequest["https://sm.ms/api/upload", <|"Body" -> {body}|>], "RawJSON"]
+];
 
 
 (* ::Subsection:: *)

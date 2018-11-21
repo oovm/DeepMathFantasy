@@ -4,9 +4,9 @@
 (*Benchmark*)
 
 
-CalculationStage::usage = "";
+InferenceStage::usage = "";
 AnalysisStage::usage = "";
-
+AmendmentStage::usage = "";
 
 
 (* ::Subsection:: *)
@@ -129,24 +129,24 @@ doInference[net_NetChain, img_List] := Block[
 	Sow[VerificationTest[MatrixQ@var, True, TestID -> "Inferencing"], "Test"];
 	Sow[VerificationTest[StringQ@expt, True, TestID -> "Dumping"], "Test"]
 ];
-Options[CalculationStage] = {DumpSave -> False, Timing -> 5, SampleRate -> 16};
-CalculationStage[dataPath_, modelPath_, OptionsPattern[]] := Block[
+Options[InferenceStage] = {DumpSave -> False, Timing -> 5, SampleRate -> 16};
+InferenceStage[dataPath_, modelPath_, OptionsPattern[]] := Block[
 	{data, model, labels, sample, eval, groups, dump},
 	dump = Reaper[
 	(*CheckDependency[];*)
-		Sow[VerificationTest[True, True, TestID -> "**CalculationStage**"], "Test"];
+		Sow[VerificationTest[True, True, TestID -> "**InferenceStage**"], "Test"];
 		data = getData[dataPath];
 		model = getModel[modelPath];
 		Sow@NetAnalyze[model];
+		Sow["NetName" -> FileBaseName[modelPath]];
+		
 		
 		Sow["Decoder" -> getDecoder[model]];
 		labels = getLabels[model];
 		Sow["Classes" -> labels];
 		Sow["Number" -> Length@labels];
-		
 		Sow["Actual" -> data[[All, 2]]];
 		Sow["Count" -> Length@data];
-		
 		
 		
 		sample = getSample[data, OptionValue[SampleRate]];
@@ -155,7 +155,6 @@ CalculationStage[dataPath_, modelPath_, OptionsPattern[]] := Block[
 		
 		
 		eval = NetReplacePart[model, "Output" -> Length@labels];
-		
 		(*groups = Partition[First /@ data, UpTo@Ceiling[10^6 / Length@labels]];*)
 		If[TrueQ@OptionValue[DumpSave],
 			doInference[eval, First /@ data, Ceiling[10^6 / Length@labels]],
@@ -163,12 +162,10 @@ CalculationStage[dataPath_, modelPath_, OptionsPattern[]] := Block[
 		];
 		
 		
-		
-		
 		Sow[VerificationTest[True, True, TestID -> "Stage Finish"], "Test"];
 		Sow[VerificationTest[Clear[data, model, eval, groups], Null, TestID -> "Fast GC"], "Test"];
 	];
-	Export["CalculationStage.dump", dump, "MX"]
+	Export["InferenceStage.dump", dump, "MX"]
 ];
 
 
@@ -427,6 +424,33 @@ AnalysisStage[OptionsPattern[]] := Block[
 		Sow[VerificationTest[Clear[$Register], Null, TestID -> "Fast GC"], "Test"];
 	];
 	Export["AnalysisStage.dump", dump, "MX"]
+];
+
+(* ::Subsubsection::Closed:: *)
+(*AmendStage*)
+
+Options[AmendmentStage] = {"Amend" -> {"Amend" -> "Nothing"}};
+AmendmentStage[OptionsPattern[]] := Block[
+	{stage1, stage2},
+	stage1 = Import@"InferenceStage.dump";
+	stage2 = Import@"AnalysisStage.dump";
+	test = TestReport@Flatten[First /@ {stage1, stage2}];
+	info = Last@stage2;
+	report = <||>;
+	report["Net"] = Prepend[info["Net"], "Name" -> info["NetName"]];
+	report["Net", "Speed"] = Join[info["CPU Timing"], info["GPU Timing"]];
+	report["MainIndicator"] = <||>;
+	report["MainIndicator", "Probability"] = info["pLoss"];
+	report["MainIndicator", "TopN"] = info["TopN"];
+	report["MainIndicator", "LikelihoodRate"] = info["logLike"];
+	report["ClassIndicator"] = <||>;
+	report["ClassIndicator", "HardestClass"] = info["TopConfusionClasses"];
+	report["ClassIndicator", "ConfusionMatrix"] = info["TopConfusionMatrix"];
+	report["ClassIndicator", "Score"] = info["ClassScore"];
+	report["TestReport"] = TestReportAnalyze[test];
+	report = Append[report, OptionValue["Amend"]];
+	report = GeneralUtilities`ToAssociations@report;
+	Export["report.m", report // GeneralUtilities`ToPrettyString, "Text"]
 ];
 
 

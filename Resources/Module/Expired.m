@@ -70,10 +70,10 @@ ClassificationUncertaintyAnalyzeThenPlot[cm_ClassifierMeasurementsObject] := Blo
 	{accuracies, rejections} = Transpose[cm[{"Accuracy", "RejectionRate"}, IndeterminateThreshold -> #]& /@ thresholds] /. {Indeterminate -> 1};
 	pts = MapThread[
 		Callout[{#1, #2},
-			Column @ {
-				Row @ {"Accept = ", #2},
-				Row @ {"Rejecte = ", #1},
-				Row @ {"Uncertainty", " = ", #3}
+			Column@{
+				Row@{"Accept = ", #2},
+				Row@{"Rejecte = ", #1},
+				Row@{"Uncertainty", " = ", #3}
 			}, CalloutMarker -> "CirclePoint", (*LabelStyle\[Rule]{12,Bold,Blue},*)LeaderSize -> 25, Appearance -> "CurvedLeader"
 		]&,
 		{rejections, accuracies, thresholds}

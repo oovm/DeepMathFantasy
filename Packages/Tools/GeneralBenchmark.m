@@ -5,6 +5,8 @@
 
 TestReportAnalyze::usage = "";
 NetAnalyze::usage = "";
+UploadSMMS::usage = "";
+
 
 (* ::Subsection:: *)
 (*Main*)
@@ -26,8 +28,8 @@ TestReportAnalyze[obj_TestReportObject] := Block[
 		"Time" -> QuantityMagnitude[#AbsoluteTimeUsed, "Seconds"],
 		"CPUTime" -> QuantityMagnitude[#CPUTimeUsed, "Seconds"],
 		"MemoryChange" -> N@QuantityMagnitude[#MemoryUsed, "Megabytes"]
-	|> &;
-	MapIndexed[attr, Association @@@ Values[obj["TestResults"]]]
+	|>&;
+	MapIndexed[attr, Values[obj["TestResults"]][[All, 1]]]
 ];
 
 

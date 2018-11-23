@@ -75,7 +75,7 @@ getData[path_String] := Block[
 	Return[var]
 ];
 getModel[path_String] := Block[
-	{name = "Loading Model Loading", var},
+	{name = "Loading Model", var},
 	var := var = Import@path;
 	Sow[VerificationTest[Head[var], NetChain, TestID -> name], "Test"];
 	Return[var]
@@ -100,6 +100,27 @@ getSample[data_List, num_Integer : 16] := Block[
 		RandomSample[First /@ data, UpTo@num]
 	];
 	Sow[VerificationTest[Head[var], List, TestID -> name], "Test"];
+	Return[var]
+];
+evalCalibrateNet[model_, var_ : False] := Block[
+	{encoder, decoder, input, output},
+	encoder = NetExtract[model, "Input"];
+	decoder = NetExtract[model, "Output"];
+	input = NetEncoder[{"Image",
+		encoder[["ImageSize"]],
+		"MeanImage" -> encoder[["MeanImage"]],
+		"VarianceImage" -> 1 / encoder[["VarianceImage"]]
+	}];
+	output = Length[decoder[["Labels"]]];
+	NetReplacePart[model, {
+		If[var, "Input" -> input, Nothing],
+		"Output" -> output
+	}]
+];
+getCalibrateNet[net_, inv_ : False] := Block[
+	{var},
+	var := var = evalCalibrateNet[net, inv];
+	Sow[VerificationTest[Head@var, NetChain, TestID -> "Calibrating Net"], "Test"];
 	Return[var]
 ];
 CPUTiming[net_NetChain, sample_List, timing_ : 5] := Block[
@@ -129,7 +150,12 @@ doInference[net_NetChain, img_List] := Block[
 	Sow[VerificationTest[MatrixQ@var, True, TestID -> "Inferencing"], "Test"];
 	Sow[VerificationTest[StringQ@expt, True, TestID -> "Dumping"], "Test"]
 ];
-Options[InferenceStage] = {DumpSave -> False, Timing -> 5, SampleRate -> 16};
+Options[InferenceStage] = {
+	DumpSave -> False,
+	Timing -> 5,
+	SampleRate -> 16,
+	Inverse -> False
+};
 InferenceStage[dataPath_, modelPath_, OptionsPattern[]] := Block[
 	{data, model, labels, sample, eval, groups, dump},
 	dump = Reaper[
@@ -154,7 +180,7 @@ InferenceStage[dataPath_, modelPath_, OptionsPattern[]] := Block[
 		GPUTiming[model, sample, OptionValue[Timing]];
 		
 		
-		eval = NetReplacePart[model, "Output" -> Length@labels];
+		eval = getCalibrateNet[model, OptionValue[Inverse]];
 		(*groups = Partition[First /@ data, UpTo@Ceiling[10^6 / Length@labels]];*)
 		If[TrueQ@OptionValue[DumpSave],
 			doInference[eval, First /@ data, Ceiling[10^6 / Length@labels]],
@@ -180,22 +206,35 @@ getProbabilitiesMatrix[] := Block[
 	Sow[VerificationTest[MatrixQ[var], True, TestID -> name], "Test"];
 	Return[var]
 ];
-evalPrediction[decoder_, pMatrix_] := decoder@pMatrix;
+evalPrediction[pMatrix_, classes_] := Block[
+	{no1},
+	Needs["NumericArrayUtilities`"];
+	no1 = NumericArrayUtilities`PartialOrdering[Flatten[pMatrix, Ramp[Depth[pMatrix] - 3]], -1];
+	Extract[classes, no1];
+];
+(*
 getPrediction[attr_Association] := Block[
 	{name = "Prediction", var},
-	var := var = evalPrediction @@ Lookup[attr, {"Decoder", "pMatrix"}];
+	var := var = evalPrediction @@ Lookup[attr, {"pMatrix", "Classes"}];
 	Sow[VerificationTest[ListQ[var], True, TestID -> name], "Test"];
 	Return[var]
 ];
-evalTopN[{pMatrix_, decoder_, actual_}, ks_] := Block[
-	{eval},
-	eval = N@Mean@Boole@MapThread[MemberQ, {decoder[pMatrix, {"TopDecisions", #}], actual}]&;
-	Sow["TopN" -> Association@ParallelTable["Top-" <> ToString[k] -> eval[k], {k, ks}]];
+*)
+evalPredictTopN[{pMatrix_, classes_, actual_}, topN_List] := Block[
+	{index, calc, top},
+	Needs["NumericArrayUtilities`"];
+	index = actual /. AssociationThread[classes -> Range@Length@classes];
+	calc = N@Tr@Boole@MapThread[MemberQ, {(top = top[[All, 1 ;; #]]), index}] / Length@index&;
+	top = NumericArrayUtilities`PartialOrdering[Flatten[pMatrix, Ramp[Depth[pMatrix] - 3]], -100];
+	Sow["TopN" -> Reverse@Table["Top-" <> ToString[i] -> calc@i, {i, ReverseSort@topN}]];
+	Extract[classes, top]
 ];
-sowTopN[attr_Association, ks_List] := Block[
-	{name = "TopN", var},
-	var := var = evalTopN[Lookup[attr, {"pMatrix", "Decoder", "Actual"}], ks];
-	Sow[VerificationTest[var, Null, TestID -> name], "Test"];
+doPredictTopN[attr_Association, ks_List : {}] := Block[
+	{name = "PredictTopN", topList, var},
+	topList = Prepend[If[Length@ks === 0, AskTopN@attr["Number"], ks], 1] // Union;
+	var := var = evalPredictTopN[Lookup[attr, {"pMatrix", "Classes", "Actual"}], topList];
+	Sow[VerificationTest[ListQ@var, True, TestID -> name], "Test"];
+	Return[var]
 ];
 evalProbabilities[pMatrix_, classes_, nClass_, actual_] := Block[
 	{index, indices},
@@ -304,7 +343,7 @@ evalTopConfusion[counts_, classes_, nClass_] := Block[
 	top = Take[Flatten@confusions // DeleteDuplicates, UpTo[25]];
 	If[
 		Head[First@classes] === Entity,
-		SortBy[classes[[top]], CommonName],
+		SortBy[classes[[top]], StringReverse@CommonName@#&],
 		Sort[classes[[top]]]
 	]
 ];
@@ -315,10 +354,11 @@ getTopConfusion[attr_Association] := Block[
 	Return[var]
 ];
 ConfusionMatrixPlot[cMatrix_, classes_, top_] := Block[
-	{subset, subMatrix, rowF, columnF, nClass, exporter, plot, color},
+	{subset, subMatrix, cap, rowF, columnF, nClass, exporter, plot, color},
 	exporter = Export[#, plot, Background -> None, ImageResolution -> 72]&;
 	subset = Flatten@Map[Position[classes, #]&, top];
 	subMatrix = Part[cMatrix, subset, subset];
+	cap = If[Head@# === Entity, First@StringSplit[Last@#, "::"], Capitalize@#]&;
 	(*indeterminatecounts = Part[cMatrix, subset, -1];*)
 	rowF = Part[Map[Function[N[With[{t = Total@#}, If[Greater[t, 0], # / t, #]]]], Part[cMatrix, All, 1 ;; -2]], subset];
 	columnF = Part[Transpose[Map[Function[N[With[{t = Total@#}, If[Greater[t, 0], # / t, #]]]], Transpose[Part[cMatrix, All, 1 ;; -2]]]], subset];
@@ -328,13 +368,10 @@ ConfusionMatrixPlot[cMatrix_, classes_, top_] := Block[
 		FrameTicksStyle -> 2 Min[(12 * (2 * 20)^0.25) / (nClass + 20)^0.25, 12],
 		FrameLabel -> (Style[#, "Title", 36]& /@ {"Ground Truth", "Predicted Label"}),
 		FrameTicks -> {
-			Transpose@{Range[nClass], Map[Rotate[Style[#, color], 0]&, top]},
-			Transpose@{
-				Range@nClass,
-				Map[Function[Rotate[#, Pi / 2]], Total@subMatrix]
-			},
+			Transpose@{Range@nClass, Map[Rotate[Style[cap@#, color], 0]&, top]},
+			Transpose@{Range@nClass, Map[Rotate[#, Pi / 2]&, Total@subMatrix]},
 			Transpose@{Range@nClass, Map[Total, subMatrix]},
-			Transpose@{Range@nClass, Map[Function[Rotate[Style[#, color], Pi / 2]], top]}
+			Transpose@{Range@nClass, Map[Rotate[Style[cap@#, color], Pi / 2]&, top]}
 		},
 		Epilog -> Table[
 			Inset[
@@ -356,6 +393,7 @@ doConfusionMatrixPlot[attr_Association] := Block[
 ];
 evalClassIndicator[iMatrix_, classes_, count_] := Block[
 	{ex, eval},
+	Needs["MachineLearning`"];
 	ex = MachineLearning`file115ClassifierPredictor`PackagePrivate`iClassifierMeasurementsObject[<|"IndicesMatrix" -> iMatrix, "ExtendedClasses" -> classes, "Weights" -> Array[1&, count]|>];
 	eval[sample_] := sample -> Map[# -> First@ex[# -> sample]& , {
 		"TruePositiveRate",
@@ -382,8 +420,8 @@ AnalysisStage[OptionsPattern[]] := Block[
 	{dump, $Register, useless},
 	dump = Reaper[
 		Sow[VerificationTest[True, True, TestID -> "**AnalysisStage**"], "Test"];
-		CheckParallelize[];
-		$Register = Association[Last@Import["CalculationStage.dump"]];
+		(*CheckParallelize[];*)
+		$Register = Association[Last@Import["InferenceStage.dump"]];
 		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing"}*)
 		
 		
@@ -392,17 +430,17 @@ AnalysisStage[OptionsPattern[]] := Block[
 		
 		
 		Scan[Sow[# -> Lookup[$Register, #]]&, {"Net", "Number", "CPU Timing", "GPU Timing"}];
-		$Register["Prediction"] = getPrediction@$Register;
+		$Register["Prediction"] = doPredictTopN[$Register, {}];
 		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing","pMatrix","Prediction"}*)
 		
 		
-		sowTopN[$Register, AskTopN[$Register["Number"]]];
 		$Register["Probabilities"] = getProbabilities@$Register;
 		(*{"Net","Actual","Decoder","Classes","Number","CPU Timing","GPU Timing","pMatrix","Probabilities","Prediction"}*)
 		
 		
 		useless = {"Net", "CPU Timing", "GPU Timing", "pMatrix", "Decoder"};
-		Sow[VerificationTest[Length@KeyDropFrom[$Register, useless], 6, TestID -> "Fast GC"], "Test"];
+		(*Sow[VerificationTest[Length@KeyDropFrom[$Register, useless], 6, TestID -> "Fast GC"], "Test"];*)
+		KeyDropFrom[$Register, useless];
 		(*{"Classes","Number","Actual","Count","Prediction","Probabilities"}*)
 		
 		
@@ -431,7 +469,7 @@ AnalysisStage[OptionsPattern[]] := Block[
 
 Options[AmendmentStage] = {"Amend" -> {"Amend" -> "Nothing"}};
 AmendmentStage[OptionsPattern[]] := Block[
-	{stage1, stage2},
+	{stage1, stage2, test, info, report},
 	stage1 = Import@"InferenceStage.dump";
 	stage2 = Import@"AnalysisStage.dump";
 	test = TestReport@Flatten[First /@ {stage1, stage2}];

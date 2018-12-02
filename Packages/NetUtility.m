@@ -24,7 +24,7 @@ Updated$Tools = "2018-10-20";
 (*Codes*)
 (* ::Subsubsection:: *)
 (*NetChain2Graph*)
-PrintLine[expr_, s_ : N] := Block[
+PrintLine[expr_, s_ : N] := Scope[
 	{box, token},
 	token = If[StringQ@s , "\"" ~~ s ~~ "\"", ToString@s];
 	box = ToBoxes[expr] //. {{a___, token, ",", b___} :> {a, "\[IndentingNewLine]", b}};
@@ -36,8 +36,8 @@ PrintLine[expr_, s_ : N] := Block[
 (* ::Subsubsection:: *)
 (*NetChain2Graph*)
 NetChain2Graph[other___] := other;
-NetChain2Graph[net_NetChain] := Block[
-	{nets = Normal@net},
+NetChain2Graph[net_NetChain] := Scope[
+	nets = Normal@net;
 	NetGraph[nets,
 		Rule @@@ Partition[Range@Length@nets, 2, 1],
 		"Input" -> NetExtract[net, "Input"],
@@ -70,8 +70,8 @@ netMergeIdentity[nodes_List, op_] := NetGraph[
 ];
 Options[NetMerge] = {Identity -> False, Expand -> False};
 NetMerge[nodes_, opt : OptionsPattern[]] := NetMerge[nodes, Plus, opt];
-NetMerge[nodes_, opMap_, opt : OptionsPattern[]] := Block[
-	{op, net, isExpand = OptionValue[Expand]},
+NetMerge[nodes_, opMap_, opt : OptionsPattern[]] := Scope[
+	isExpand = OptionValue[Expand];
 	op = Lookup[$opMap, opMap, opMap];
 	If[ListQ@nodes,
 		net = If[
@@ -156,8 +156,7 @@ LayerInformation[f_ElementwiseLayer] := <|
 |>;
 
 
-layerGridNormal[info_Association] := Block[
-	{pLen, fill, array, head, option, tensor},
+layerGridNormal[info_Association] := Scope[
 	pLen = Max[StringLength /@ Flatten[{First /@ info["Tensor"], First /@ info["Option"]}]] + 2;
 	fill = Row[{Style[StringPadRight[First@# <> ":", pLen], Bold], StringRiffle[Last@#, "×"]}]&;
 	array = Item[Style[#, Black, 16, FontFamily -> "Comic Sans MS"], Background -> Lighter[Gray, 0.7]]&;
@@ -169,8 +168,7 @@ layerGridNormal[info_Association] := Block[
 	tensor = PadRight[{Column[fill /@ info["Tensor"]]}, Length@head, SpanFromLeft];
 	Grid[{head, option, tensor}, Frame -> All, Alignment -> Left]
 ];
-layerGridConvolutionBiases[info_Association] := Block[
-	{oFill, tFill, head, option, tensor},
+layerGridConvolutionBiases[info_Association] := Scope[
 	oFill = StringRiffle[# /. info["Option"], "×"]&;
 	tFill = StringRiffle[# /. info["Tensor"], "×"]&;
 	head = {
@@ -241,8 +239,7 @@ LayerRemoveShape[layer_FlattenLayer] := Nothing;
 
 (* ::Subsubsection:: *)
 (*MXNet$Bind*)
-MXNet$Bind[pathJ_, pathP_] := Block[
-	{symbol, params},
+MXNet$Bind[pathJ_, pathP_] := Scope[
 	symbol = MXNetLink`MXSymbolFromJSON@File[pathJ];
 	params = MXNetLink`MXModelLoadParameters[pathP];
 	<|
@@ -263,8 +260,7 @@ MXNet$Bind[pathJ_, pathP_] := Block[
 (* ::Subsubsection:: *)
 (*MXNet$Boost*)
 Options[MXNet$Boost] = {TargetDevice -> "GPU"};
-MXNet$Boost[dm_Association, OptionsPattern[]] := Block[
-	{exe, device, port},
+MXNet$Boost[dm_Association, OptionsPattern[]] := Scope[
 	device = NeuralNetworks`Private`ParseContext@OptionValue[TargetDevice];
 	exe = NeuralNetworks`Private`ToNetExecutor[
 		NeuralNetworks`NetPlan[<|
@@ -295,8 +291,8 @@ MXNet$Boost[dm_Association, OptionsPattern[]] := Block[
 (* ::Subsubsection::Closed:: *)
 (*ClassificationBenchmark*)
 ClassificationBenchmark[model_, data_List] := ClassificationEvaluate[model, data];
-ClassificationBenchmark[cm_ClassifierMeasurementsObject, name_String : Missing[]] := Block[
-	{net = First[First[cm]["Model"]]["Model", "Net"]},
+ClassificationBenchmark[cm_ClassifierMeasurementsObject, name_String : Missing[]] := Scope[
+	net = First[First[cm]["Model"]]["Model", "Net"];
 	ClassificationProbabilitiesPlot@cm;
 	<|
 		"Name" -> If[MissingQ@name, Hash[cm, "Expression", "HexString"], name],
@@ -311,8 +307,7 @@ ClassificationBenchmark[cm_ClassifierMeasurementsObject, name_String : Missing[]
 	|>
 ];
 ClassificationBenchmark[attr_Association, opts__] := Block[{new = attr}, AssociateTo[new, {opts}]];
-ClassificationBenchmark[path_String, analyze_Association] := Block[
-	{fix, text},
+ClassificationBenchmark[path_String, analyze_Association] := Scope[
 	fix = GeneralUtilities`TextString`PackagePrivate`fmtReal[a_, b_] :> ExportString[a, "JSON"];
 	text = Quiet@Dataset`DatasetJSONString[Dataset[analyze]] /. fix;
 	Export[path <> ".json", StringReplace[text, {", {" -> ",\n {", "], [" -> "], \n["}], "Text"];

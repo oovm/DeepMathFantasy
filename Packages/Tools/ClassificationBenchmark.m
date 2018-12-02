@@ -358,7 +358,12 @@ ConfusionMatrixPlot[cMatrix_, classes_, top_] := Block[
 	exporter = Export[#, plot, Background -> None, ImageResolution -> 72]&;
 	subset = Flatten@Map[Position[classes, #]&, top];
 	subMatrix = Part[cMatrix, subset, subset];
-	cap = If[Head@# === Entity, First@StringSplit[Last@#, "::"], Capitalize@#]&;
+	cap = Switch[Head@#,
+		Entity, First@StringSplit[Last@#, "::"],
+		String, Capitalize@#,
+		Integer, #
+		_, #
+	]&;
 	(*indeterminatecounts = Part[cMatrix, subset, -1];*)
 	rowF = Part[Map[Function[N[With[{t = Total@#}, If[Greater[t, 0], # / t, #]]]], Part[cMatrix, All, 1 ;; -2]], subset];
 	columnF = Part[Transpose[Map[Function[N[With[{t = Total@#}, If[Greater[t, 0], # / t, #]]]], Transpose[Part[cMatrix, All, 1 ;; -2]]]], subset];

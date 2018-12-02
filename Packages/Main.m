@@ -13,6 +13,10 @@ $Data = File@If[
 ];
 $RootNN = File@DirectoryName[FindFile["NeuralNetworks`"], 2];
 
+(*Extension*)
+PackageExtendContextPath[{
+	"GeneralUtilities`"
+}];
 
 $DeepMathInitialize = <|
 	"Helper" -> TrueQ@DeepMath`helper

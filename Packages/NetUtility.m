@@ -25,8 +25,7 @@ Updated$Tools = "2018-10-20";
 (* ::Subsubsection:: *)
 (*NetChain2Graph*)
 PrintLine[expr_, s_ : N] := Scope[
-	{box, token},
-	token = If[StringQ@s , "\"" ~~ s ~~ "\"", ToString@s];
+	token = If[StringQ@s, "\"" ~~ s ~~ "\"", ToString@s];
 	box = ToBoxes[expr] //. {{a___, token, ",", b___} :> {a, "\[IndentingNewLine]", b}};
 	box = box //. {{a___, ",", token} :> {a, "\[IndentingNewLine]"}};
 	CellPrint@Cell[BoxData@box, "Output"];
@@ -126,8 +125,10 @@ LayerInformation[bn_BatchNormalizationLayer] := <|
 	"Option" -> {
 		"Momentum" -> NetExtract[bn, "Momentum"],
 		"Epsilon" -> "10^" <> ToString@Round@Log10@NetExtract[bn, "Epsilon"]
-	(*"MovingMean"\[Rule]toVec@NetExtract[bn,"MovingMean"],
-	"MovingVariance"->toVec@NetExtract[bn,"MovingVariance"]*)
+	(*
+		"MovingMean"\[Rule]toVec@NetExtract[bn,"MovingMean"],
+		"MovingVariance"->toVec@NetExtract[bn,"MovingVariance"]
+	*)
 	},
 	"Tensor" -> {
 		"Input" -> NetExtract[bn, "Input"],

@@ -40,9 +40,11 @@ $icon = Block[
 ];
 (* ::Subsubsection::Closed:: *)
 (*Object*)
-
-NetApplicationQ[asc_?AssociationQ] := AllTrue[{"Name","Models", "Input", "Date"}, KeyExistsQ[asc, #]&]
-NetApplicationQ[_] = False;
+NetApplicationQ[asc_?AssociationQ] := AllTrue[{"Name", "Models", "Input", "Date"}, KeyExistsQ[asc, #]&];
+NetApplicationQ[___] = False;
+NetApplication::illInput = "Illegal parameters, please read the instructions again.";
+NetApplication /: Set[NetApplication[asc_][MetaInformation, keys__], val_] := asc[MetaInformation, keys] = val;
+NetApplication /: Print[NetApplication[asc_]] := Information[asc["Handler"], LongForm -> False];
 NetApplication /: MakeBoxes[
 	obj : NetApplication[asc_? NetApplicationQ],
 	form : (StandardForm | TraditionalForm)
@@ -57,18 +59,19 @@ NetApplication /: MakeBoxes[
 	
 	};
 	BoxForm`ArrangeSummaryBox[
-		DeepMath`NetApplication,
-		obj,$icon, above,below,form,
+		"NetApplication",
+		obj, $icon, above, below, form,
 		"Interpretable" -> Automatic
 	]
 ];
 
 (* ::Subsubsection::Closed:: *)
 (*Methods*)
-NetApplication[asc_?AssociationQ][Input]:=Activate@Lookup[asc,"Example"]
-NetApplication[asc_?AssociationQ][Function]:=GeneralUtilities`PrintDefinitionsLocal@Lookup[asc,"Handler"]
-NetApplication[asc_?AssociationQ][NetModel]:=Lookup[asc,"Models"]
-NetApplication[asc_?AssociationQ][other___]:=Lookup[asc,"Handler"][asc,other]
+NetApplication[asc_?AssociationQ][Input] := Activate@Lookup[asc, "Example"];
+NetApplication[asc_?AssociationQ][Function] := GeneralUtilities`PrintDefinitionsLocal@Lookup[asc, "Handler"];
+NetApplication[asc_?AssociationQ][NetModel] := Lookup[asc, "Models"];
+NetApplication[asc_?AssociationQ][MetaInformation, keys___] := asc[MetaInformation, keys];
+NetApplication[asc_?AssociationQ][other___] := Lookup[asc, "Handler"][asc, other];
 
 
 

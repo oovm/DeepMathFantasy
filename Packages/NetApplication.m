@@ -5,7 +5,8 @@
 
 
 NetApplication::usage = "2";
-
+MakeNetApplication::usage = "Makes an object";
+PackNetApplication::usage = "Makes an object";
 
 (* ::Subsection:: *)
 (*Main*)
@@ -14,19 +15,81 @@ NetApplication::usage = "2";
 Begin["`Tools`NetApplication`"];
 
 
+(* ::Subsubsection:: *)
+(*Constructor*)
+
+
+(*Seem as Symbol*)
+(*
+NetApplication ~ SetAttributes ~ HoldFirst;
+SetNetApplication[data_] := With[
+	{u = Unique["FunctionRepository`$" <> StringJoin@StringSplit[data["UUID"], "-"] <> "`Object"]},
+	u = data;
+	SetAttributes[u, Temporary];
+	NetApplication[u]
+];
+*)
+(*Seem as Association*)
+SetNetApplication[data_] := NetApplication[data];
+MakeNetApplication[e_?AssociationQ] := Block[
+	{uuid, ifMissing, wrapper, data},
+	uuid = CreateUUID[];
+	ifMissing[p_, default_] := If[MissingQ[e@p], default, e@p];
+	wrapper = Activate@If[
+		MissingQ@e[Method],
+		Return[$Failed],
+		Inactive[Set][
+			Inactive[DownValues][Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> ToString@e[Method]]],
+			Inactive[ReplaceAll][
+				Inactive[DownValues][e[Method]],
+				{e[Method] -> Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> ToString@e[Method]]}
+			]
+		]
+	];
+	data = <|
+		"Name" -> e["Name"],
+		"UUID" -> uuid,
+		"Date" -> ifMissing["Date", Now],
+		"Input" -> e["Input"],
+		"Example" -> e["Example"],
+		"Version" -> "NetApplication v1.3",
+		"Model" -> e["Model"],
+		Method -> Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> ToString@e[Method]],
+		MetaInformation -> ifMissing[MetaInformation, <||>]
+	|>;
+	SetAttributes[data, Temporary];
+	SetNetApplication[data]
+];
+
+
+
+(* ::Subsubsection:: *)
+(*Saver*)
+Serialize := Serialize = ResourceFunction["BinarySerializeWithDefinitions"];
+PackNetApplication[app_] := Block[
+	{name, bin},
+	name = Normal[app]["Name"] <> ".app";
+	If[FileExistsQ@name, DeleteFile@name];
+	bin = CreateFile[name];
+	BinaryWrite[bin, Serialize@app];
+	Close[bin]
+]
+
 (* ::Subsubsection::Closed:: *)
 (*Icon*)
+
+
 $icon = Block[
 	{
 		layerCounts = {3, 2, 5, 1},
-		graph, vstyle
+		graph, vStyle
 	},
 	graph = GraphUnion @@ MapThread[
 		IndexGraph, {
 			CompleteGraph /@ Partition[layerCounts, 2, 1],
 			FoldList[Plus, 0, layerCounts[[;; -3]]]
 		}];
-	vstyle = Catenate[Thread /@ Thread[
+	vStyle = Catenate[Thread /@ Thread[
 		TakeList[VertexList[graph], layerCounts] -> ColorData[97] /@ Range@Length[layerCounts]
 	]];
 	Graph[
@@ -34,17 +97,49 @@ $icon = Block[
 		GraphLayout -> {"MultipartiteEmbedding", "VertexPartition" -> layerCounts},
 		GraphStyle -> "BasicBlack",
 		VertexSize -> 0.65,
-		VertexStyle -> vstyle,
+		VertexStyle -> vStyle,
 		ImageSize -> 60
 	]
 ];
-(* ::Subsubsection::Closed:: *)
+
+
+(* ::Subsubsection:: *)
+(*Interface*)
+
+
+(*define application functions*)
+
+SetAttributes[apply, HoldAllComplete];
+$basicInterfaceFunctions = {
+	Part, Extract, Take, Drop, First, Last, Most, Rest, Length,
+	Lookup, KeyTake, KeyDrop, MemberQ, KeyMemberQ, KeyExistsQ
+};
+apply[NetApplication[s_], f_, args___] := f[s, args];
+apply[NetApplication[s_][a___], f_, args___] := f[s[a], args];
+apply[NetApplication[s_][[a___]], f_, args___] := f[s[[a]], args];
+apply[e_, r__] := apply[Evaluate@e, r] /; MatchQ[e, NetApplication[_Symbol]];
+Map[(NetApplication /: #[o_NetApplication, a___] := apply[o, #, a]) &, $basicInterfaceFunctions];
+(*define mutation interface via apply function*)
+SetAttributes[mutate, HoldAllComplete];
+$basicMutationFunctions = {
+	SetDelayed, Unset, KeyDropFrom,
+	PrependTo, AppendTo, AssociateTo, AddTo, SubtractFrom, TimesBy, DivideBy
+};
+Map[(
+	mutate[#[o : (_Association?(MatchQ[#, NetApplication[_Association]] &) | NetApplication[_Association]), a___]] := apply[o, #, a];
+	mutate[#[o : (_Association?(MatchQ[#, NetApplication[_Association]] &) | NetApplication[_Association])[k__], a___]] := apply[o, #, a];
+	mutate[#[o : (_Association?(MatchQ[#, NetApplication[_Association]] &) | NetApplication[_Association])[[k___]], a___]] := apply[o, #, a];
+) &, $basicMutationFunctions];
+Language`SetMutationHandler[NetApplication, mutate];
+
+
+(* ::Subsubsection:: *)
 (*Object*)
-NetApplicationQ[asc_?AssociationQ] := AllTrue[{"Name", "Models", "Input", "Date"}, KeyExistsQ[asc, #]&];
+
+showByte = UnitConvert[Quantity[N@ByteCount@#, "Bytes"], "Megabytes"]&;
+NetApplicationQ[asc_?AssociationQ] := AllTrue[{"Name", "Input", "Model"}, KeyExistsQ[asc, #]&];
 NetApplicationQ[___] = False;
 NetApplication::illInput = "Illegal parameters, please read the instructions again.";
-NetApplication /: Set[NetApplication[asc_][MetaInformation, keys__], val_] := asc[MetaInformation, keys] = val;
-NetApplication /: Print[NetApplication[asc_]] := Information[asc["Handler"], LongForm -> False];
 NetApplication /: MakeBoxes[
 	obj : NetApplication[asc_? NetApplicationQ],
 	form : (StandardForm | TraditionalForm)
@@ -52,11 +147,13 @@ NetApplication /: MakeBoxes[
 	{above, below},
 	above = {
 		{BoxForm`SummaryItem[{"Name: ", asc["Name"]}]},
-		{BoxForm`SummaryItem[{"Input: ", asc["Input"]}]},
-		{BoxForm`SummaryItem[{"Date: ", asc["Date"]}]}
+		{BoxForm`SummaryItem[{"Hash: ", Hash[asc, "Expression", "HexString"]}]},
+		{BoxForm`SummaryItem[{"Input: ", asc["Input"]}]}
 	};
 	below = {
-	
+		{BoxForm`SummaryItem[{"Byte: ", showByte@asc["Model"]}]},
+		{BoxForm`SummaryItem[{"Date: ", DateString@asc["Date"]}]},
+		{BoxForm`SummaryItem[{"UUID: ", asc["UUID"]}]}
 	};
 	BoxForm`ArrangeSummaryBox[
 		"NetApplication",
@@ -65,16 +162,19 @@ NetApplication /: MakeBoxes[
 	]
 ];
 
-(* ::Subsubsection::Closed:: *)
+
+(* ::Subsubsection:: *)
 (*Methods*)
+
+
+NetApplication /: Print[NetApplication[s_]] := Information[Evaluate@s[Method], LongForm -> False];
+NetApplication /: Normal[NetApplication[s_]] := s;
+(*NetApplication[asc_?AssociationQ][Save]:=doSave;*)
 NetApplication[asc_?AssociationQ][Input] := Activate@Lookup[asc, "Example"];
-NetApplication[asc_?AssociationQ][Function] := GeneralUtilities`PrintDefinitionsLocal@Lookup[asc, "Handler"];
+NetApplication[asc_?AssociationQ][Function] := GeneralUtilities`PrintDefinitionsLocal@Lookup[asc, Method];
 NetApplication[asc_?AssociationQ][NetModel] := Lookup[asc, "Models"];
-NetApplication[asc_?AssociationQ][MetaInformation, keys___] := asc[MetaInformation, keys];
-NetApplication[asc_?AssociationQ][other___] := Lookup[asc, "Handler"][asc, other];
-
-
-
+NetApplication[asc_?AssociationQ][MetaInformation] := asc;
+NetApplication[s_Symbol][args___] := s[Method][o, Function[Null, #[args], HoldFirst]];
 
 
 (* ::Subsection:: *)

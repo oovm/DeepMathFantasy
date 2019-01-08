@@ -7,6 +7,7 @@ alias py='/c/ProgramData/Anaconda3/python.exe -m conda'
 py update --all -y
 py install pyzmq mxnet tensorflow keras -y
 py install pytorch -c pytorch -y
+py install willyd -c caffe-cpu -y
 #py clean -p -y
 #py clean -t -y
 sleep 3600

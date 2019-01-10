@@ -8,6 +8,8 @@ NetApplication::usage = "2";
 MakeNetApplication::usage = "Makes an object";
 PackNetApplication::usage = "Makes an object";
 
+
+
 (* ::Subsection:: *)
 (*Main*)
 
@@ -15,11 +17,14 @@ PackNetApplication::usage = "Makes an object";
 Begin["`Tools`NetApplication`"];
 
 
-(* ::Subsubsection:: *)
+(* ::Subsubsection::Closed:: *)
 (*Constructor*)
+alias[old_, new_] := Set[
+	Language`ExtendedDefinition[new],
+	Language`ExtendedDefinition[old] /. HoldPattern[old] :> new
+];
 
-
-(*Seem as Symbol*)
+(*Regarded  as Symbol*)
 (*
 NetApplication ~ SetAttributes ~ HoldFirst;
 SetNetApplication[data_] := With[
@@ -29,51 +34,52 @@ SetNetApplication[data_] := With[
 	NetApplication[u]
 ];
 *)
-(*Seem as Association*)
+(*Regarded as Association*)
 SetNetApplication[data_] := NetApplication[data];
 MakeNetApplication[e_?AssociationQ] := Block[
 	{uuid, ifMissing, wrapper, data},
-	uuid = CreateUUID[];
-	ifMissing[p_, default_] := If[MissingQ[e@p], default, e@p];
+	uuid = If[MissingQ[e@"UUID"], CreateUUID[], e@"UUID"];
 	wrapper = Activate@If[
 		MissingQ@e[Method],
 		Return[$Failed],
-		Inactive[Set][
-			Inactive[DownValues][Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> ToString@e[Method]]],
-			Inactive[ReplaceAll][
-				Inactive[DownValues][e[Method]],
-				{e[Method] -> Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> ToString@e[Method]]}
-			]
-		]
+		alias[e[Method], Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> SymbolName@e[Method]]]
 	];
 	data = <|
-		"Name" -> e["Name"],
+		"Name" -> If[MissingQ[e@"Name"], Return[$Failed], e@"Name"],
 		"UUID" -> uuid,
-		"Date" -> ifMissing["Date", Now],
-		"Input" -> e["Input"],
+		"Date" -> If[MissingQ[e@"Date"], Now, e@"Date"],
+		"Update" -> Now,
+		"Input" -> If[MissingQ[e@"Input"], Return[$Failed], e@"Input"],
 		"Example" -> e["Example"],
-		"Version" -> "NetApplication v1.3",
+		"Version" -> "NetApplication v1.4.0",
 		"Model" -> e["Model"],
-		Method -> Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> ToString@e[Method]],
-		MetaInformation -> ifMissing[MetaInformation, <||>]
+		Method -> Symbol["FunctionRepository`$" <> StringJoin@StringSplit[uuid, "-"] <> "`" <> SymbolName@e[Method]],
+		MetaInformation -> If[MissingQ[e@MetaInformation], <||>, e@MetaInformation]
 	|>;
 	SetAttributes[data, Temporary];
 	SetNetApplication[data]
 ];
 
 
-
 (* ::Subsubsection:: *)
 (*Saver*)
+
+
 Serialize := Serialize = ResourceFunction["BinarySerializeWithDefinitions"];
-PackNetApplication[app_] := Block[
+Options[PackNetApplication] = {"Name" -> Automatic};
+PackNetApplication[app_, OptionsPattern] := Block[
 	{name, bin},
-	name = Normal[app]["Name"] <> ".app";
+	name = If[
+		OptionValue["Name"] =!= Automatic,
+		OptionValue["Name"],
+		Normal[app]["Name"] <> ".app";
+	];
 	If[FileExistsQ@name, DeleteFile@name];
 	bin = CreateFile[name];
 	BinaryWrite[bin, Serialize@app];
 	Close[bin]
-]
+];
+
 
 (* ::Subsubsection::Closed:: *)
 (*Icon*)
@@ -103,12 +109,12 @@ $icon = Block[
 ];
 
 
-(* ::Subsubsection:: *)
+(* ::Subsubsection::Closed:: *)
 (*Interface*)
 
 
 (*define application functions*)
-
+(*
 SetAttributes[apply, HoldAllComplete];
 $basicInterfaceFunctions = {
 	Part, Extract, Take, Drop, First, Last, Most, Rest, Length,
@@ -117,9 +123,30 @@ $basicInterfaceFunctions = {
 apply[NetApplication[s_], f_, args___] := f[s, args];
 apply[NetApplication[s_][a___], f_, args___] := f[s[a], args];
 apply[NetApplication[s_][[a___]], f_, args___] := f[s[[a]], args];
-apply[e_, r__] := apply[Evaluate@e, r] /; MatchQ[e, NetApplication[_Symbol]];
+apply[e_, r__] := With[
+	{o = Block[
+		{NetApplication, Part},
+		SetAttributes[NetApplication, HoldAllComplete];
+		Hold[Evaluate@e]
+	]},
+	Replace[o, Hold[a_] :> apply[a, r]] /; MatchQ[o,
+		Hold[NetApplication[_Association]]
+			| Hold[NetApplication[_Association][___]]
+			| Hold[NetApplication[_Association][[___]]]
+	]
+];
 Map[(NetApplication /: #[o_NetApplication, a___] := apply[o, #, a]) &, $basicInterfaceFunctions];
+*)
+
 (*define mutation interface via apply function*)
+NetApplicationMutationHandler~SetAttributes~HoldAllComplete;
+NetApplicationMutationHandler[Set[object_[key_], value_]]:=Block[
+	{new=Join[object[MetaInformation],<|key->value|>]},
+	Set[object,NetApplication[Join[Normal@object,MetaInformation-><|new|>]]];
+	Return[Null]
+];
+Language`SetMutationHandler[NetApplication,NetApplicationMutationHandler];
+(*
 SetAttributes[mutate, HoldAllComplete];
 $basicMutationFunctions = {
 	SetDelayed, Unset, KeyDropFrom,
@@ -131,10 +158,11 @@ Map[(
 	mutate[#[o : (_Association?(MatchQ[#, NetApplication[_Association]] &) | NetApplication[_Association])[[k___]], a___]] := apply[o, #, a];
 ) &, $basicMutationFunctions];
 Language`SetMutationHandler[NetApplication, mutate];
+*)
 
-
-(* ::Subsubsection:: *)
+(* ::Subsubsection::Closed:: *)
 (*Object*)
+
 
 showByte = UnitConvert[Quantity[N@ByteCount@#, "Bytes"], "Megabytes"]&;
 NetApplicationQ[asc_?AssociationQ] := AllTrue[{"Name", "Input", "Model"}, KeyExistsQ[asc, #]&];
@@ -163,18 +191,19 @@ NetApplication /: MakeBoxes[
 ];
 
 
-(* ::Subsubsection:: *)
+(* ::Subsubsection::Closed:: *)
 (*Methods*)
 
 
 NetApplication /: Print[NetApplication[s_]] := Information[Evaluate@s[Method], LongForm -> False];
 NetApplication /: Normal[NetApplication[s_]] := s;
+(*NetApplication[asc_?AssociationQ][New]:=makeNew;*)
 (*NetApplication[asc_?AssociationQ][Save]:=doSave;*)
 NetApplication[asc_?AssociationQ][Input] := Activate@Lookup[asc, "Example"];
 NetApplication[asc_?AssociationQ][Function] := GeneralUtilities`PrintDefinitionsLocal@Lookup[asc, Method];
 NetApplication[asc_?AssociationQ][NetModel] := Lookup[asc, "Models"];
-NetApplication[asc_?AssociationQ][MetaInformation] := asc;
-NetApplication[s_Symbol][args___] := s[Method][o, Function[Null, #[args], HoldFirst]];
+NetApplication[asc_?AssociationQ][MetaInformation] := Lookup[asc, MetaInformation];
+NetApplication[this_][args___] := this[Method][this, args];
 
 
 (* ::Subsection:: *)

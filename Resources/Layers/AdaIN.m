@@ -1,15 +1,16 @@
 Inputs:
-	$Content: ChannelT[$$Channels, TensorT[$$Dimensions]]
-	$Style: ChannelT[$$Channels, TensorT[$$Dimensions]]
+	$Content: ChannelT[$$Channels, TensorT[$$ContentSize]]
+	$Style: ChannelT[$$Channels, TensorT[$$StyleSize]]
 
 
 Outputs:
-	$Output: ChannelT[$$Channels, TensorT[$$Dimensions]]
+	$Output: ChannelT[$$Channels, TensorT[$$ContentSize]]
 
 Parameters:
 	$Epsilon: Defaulting[ScalarT, 10^-5]
 	$$Channels: SizeT
-	$$Dimensions: SizeListT[2]
+	$$ContentSize: SizeListT[2]
+	$$StyleSize: SizeListT[2]
 
 
 AllowDynamicDimensions: True

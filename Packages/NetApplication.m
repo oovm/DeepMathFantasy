@@ -139,13 +139,13 @@ Map[(NetApplication /: #[o_NetApplication, a___] := apply[o, #, a]) &, $basicInt
 *)
 
 (*define mutation interface via apply function*)
-NetApplicationMutationHandler~SetAttributes~HoldAllComplete;
-NetApplicationMutationHandler[Set[object_[key_], value_]]:=Block[
-	{new=Join[object[MetaInformation],<|key->value|>]},
-	Set[object,NetApplication[Join[Normal@object,MetaInformation-><|new|>]]];
+NetApplicationMutationHandler ~ SetAttributes ~ HoldAllComplete;
+NetApplicationMutationHandler[Set[object_[key_], value_]] := Block[
+	{new = Join[object[MetaInformation], <|key -> value|>]},
+	Set[object, NetApplication[Join[Normal@object, MetaInformation -> <|new|>]]];
 	Return[Null]
 ];
-Language`SetMutationHandler[NetApplication,NetApplicationMutationHandler];
+Language`SetMutationHandler[NetApplication, NetApplicationMutationHandler];
 (*
 SetAttributes[mutate, HoldAllComplete];
 $basicMutationFunctions = {
@@ -211,7 +211,7 @@ NetApplication[this_][args___] := this[Method][this, args];
 
 
 SetAttributes[
-	{ },
-	{Protected, ReadProtected}
+	{NetApplication},
+	{ReadProtected}
 ];
 End[]

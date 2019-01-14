@@ -10,8 +10,8 @@ Parameters:
 Writer: Function[
 	input = GetInput["Input", "Batchwise"];
 	path = SowNode["mean", SowSquare@input, "axis" -> 1, "keepdims" -> True];
-	path = SowSqrt@SowNode["_PlusScalar", path, "scalar" -> #Epsilon];
-	output = SowNode["broadcast_div", {input, path}];
+	path = SowRSqrt@SowNode["_PlusScalar", path, "scalar" -> #Epsilon];
+	output = SowNode["broadcast_mul", {input, path}];
 	SetOutput["Output", output]
 ]
 

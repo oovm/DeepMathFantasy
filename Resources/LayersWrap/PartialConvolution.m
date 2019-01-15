@@ -63,4 +63,4 @@ Writer: Function[
 	SetOutput["OutputMask", mask];
 ]
 
-Suffix: "Layer"
+Suffix: ""

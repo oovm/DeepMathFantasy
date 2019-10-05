@@ -1,10 +1,28 @@
 Package["NeuralNetworks`"]
 
+PackageScope["SowCast"]
+SowCast[a_, fromType_, toType_] := Scope[
+	fType = ToDataTypeCode[fromType];
+	tType = ToDataTypeCode[toType];
+	If[fType =!= tType,
+		SowNode["cast", a, "dtype" -> ToMXNetDataTypeName[tType]],
+		a
+	]
+]
+
+SowCast[a_List, fromType_, toType_] := SowCast[#, fromType, toType]& /@ a
+
 PackageScope["SowIdentity"]
 SowIdentity[a_] := SowNode["identity", a];
 
+PackageScope["SowMinScalar"]
+SowMinScalar[a_, s_] := SowNode["_minimum_scalar", a, "scalar" -> N[s]];
+
+PackageScope["SowMaxScalar"]
+SowMaxScalar[a_, s_] := SowNode["_maximum_scalar", a, "scalar" -> N[s]];
+
 PackageScope["SowMaxEps"]
-SowMaxEps[a_] := SowNode["_maximum_scalar", a, "scalar" -> "0.2220446049250313e-15"];
+SowMaxEps[a_] := SowMaxScalar[a, "0.2220446049250313e-15"];
 
 PackageScope["SowMinus"]
 SowMinus[a_] := SowNode["_RMinusScalar", a, "scalar" -> "0.0"];
@@ -40,6 +58,26 @@ PackageScope["SowTimesScalar"]
 SowTimesScalar[a_, n_] := SowNode["_MulScalar", a, "scalar" -> N[n]];
 SowTimesScalar[a_, 1. | 1] := a;
 
+PackageScope["SowDropConnect"]
+SowDropConnect[in_, p_] := SowHad[in, SowDropConnect[p]];
+SowDropConnect[p_] := SowTimesScalar[SowNode["round",
+	SowNode["random_uniform", {},
+		"low" -> CDoubleString[(1 - p) / 2.],
+		"high" -> CDoubleString[0.5 + (1 - p) / 2.],
+		"dtype" -> $DTypeMXName]],
+	1. / (1 - p)];
+
+PackageScope["SowDropout"]
+SowDropout[in_, p_] := SowDropout[in, p, {}];
+SowDropout[in_, 0., _] := in;
+SowDropout[in_, p_, axes_] := SowNode["Dropout", in, "p" -> N[p], "mode" -> "always", "axes" -> axes];
+(* until MXNet fixes the issue behind incubator-mxnet/issues/13264, the is_train
+flag must be forced-on to prevent problems when requesting grads.
+also, there is a separate issue, which is that subgraphs in mxnet use needs_grad
+for their value of is_train, so dropout fails to work in subgraphs unless gradients
+are requested. hence we just force dropout always-on and simply don't sow these nodes
+if TMode is false *)
+
 PackageScope["SowDivideScalar"]
 SowDivideScalar[a_, n_] := SowNode["_DivScalar", a, "scalar" -> N[n]];
 
@@ -58,13 +96,13 @@ PackageScope["SowBMinus"]
 SowBPlus[a_, b_] := SowNode["broadcast_plus", {a, b}];
 SowBMinus[a_, b_] := SowNode["broadcast_minus", {a, b}];
 
-PackageScope["SowDot"]
-SowDot[x_, w_] := SowNode["FullyConnected", {x, w}, "num_hidden" -> getLen[w], "no_bias" -> True];
-
 PackageScope["SowFC"]
-SowFC[x_, w_, b_] := SowNode["FullyConnected", {x, w, b}, "num_hidden" -> getLen[w]];
+SowFC[x_, w_, b_, numHidden_] := SowNode["FullyConnected", {x, w, b}, "num_hidden" -> numHidden];
+SowFC[x_, w_, None, numHidden_] := SowNode["FullyConnected", {x, w}, "num_hidden" -> numHidden, "no_bias" -> True];
 
-getLen[id_] := First @ NodeDimensions[id];
+PackageScope["SowMappedFC"]
+SowMappedFC[x_, w_, b_, numHidden_] := SowNode["FullyConnected", {x, w, b}, "num_hidden" -> numHidden, "flatten" -> False];
+SowMappedFC[x_, w_, None, numHidden_] := SowNode["FullyConnected", {x, w}, "num_hidden" -> numHidden, "no_bias" -> True, "flatten" -> False];
 
 PackageScope["SowTanh"]
 SowTanh[a_] := SowNode["tanh", a];
@@ -126,10 +164,10 @@ PackageScope["SowMarginLoss"]
 SowMarginLoss[a_, margin_] := SowNode["relu", SowNode["_RMinusScalar", a, "scalar" -> margin]];
 
 PackageScope["SowReshape"]
-SowReshape[in_, dims___] := SowNode["Reshape", in, "shape" -> Flatten[{-1, dims}]];
+SowReshape[in_, dims___] := SowNode["reshape", in, "shape" -> Flatten[{-1, dims}]];
 
 PackageScope["SowUReshape"]
-SowUReshape[in_, dims___] := SowNode["Reshape", in, "shape" -> Flatten[{dims}]];
+SowUReshape[in_, dims___] := SowNode["reshape", in, "shape" -> Flatten[{dims}]];
 
 PackageScope["SowTranspose"]
 SowTranspose[in_, axes_ : {0, 2, 1}] := SowNode["transpose", in, "axes" -> axes];
@@ -139,40 +177,40 @@ SowTransposeLast[in_, 1] := in;
 SowTransposeLast[in_, rank_] := SowTranspose[in, Join[{0, rank}, Range[rank - 1]]];
 
 PackageScope["SowTranspose01"]
-SowTranspose01[in_] := SowNode["SwapAxis", in, "dim1" -> "0", "dim2" -> "1"];
+SowTranspose01[in_] := SowSwapAxis[in, 0, 1];
 
 PackageScope["SowSwapAxis"]
 SowSwapAxis[in_, d1_, d2_] := If[d1 === d2, in, SowNode["SwapAxis", in, "dim1" -> d1, "dim2" -> d2]];
 
 PackageScope["SowSumAxis"]
 SowSumAxis[a_, axes_] := SowNode["sum", a, "axis" -> axes, "keepdims" -> "false"];
+SowSumAxis[a_, {}] := a; (* This is here because MXNet might be stupid *)
 
-PackageScope["SowFlatten1"]
-SowFlatten1[in_] := SowNode["Reshape", in, "shape" -> {-3, -2}];
+PackageScope["SowMeanAxis"]
+SowMeanAxis[a_, axes_] := SowNode["mean", a, "axis" -> axes, "keepdims" -> "false"];
+SowMeanAxis[a_, {}] := a; (* This is here because MXNet might be stupid *)
 
-PackageScope["SowUnflatten1"]
-SowUnflatten1[in_, n_Integer] :=
-	SowNode["Reshape", in, "shape" -> {-4, n, -1, -2}];
+PackageScope["SowProdAxis"]
+SowProdAxis[a_, axes_] := SowNode["prod", a, "axis" -> axes, "keepdims" -> "false"];
+SowProdAxis[a_, {}] := a;
 
-SowUnflatten1[in_, orig_MXNode] :=
-	SowNode["split_like", {in, orig}];
+PackageScope["SowMaxAxis"]
+SowMaxAxis[a_, axes_] := SowNode["max", a, "axis" -> axes, "keepdims" -> "false"];
+SowMaxAxis[a_, {}] := a;
 
 PackageScope["SowPack"]
-
-SowPack[elems_List, timewise_, dims_] := Scope[
+SowPack[elems_List, timewise_] := Scope[
 	len = Length[elems];
-	(* %MX stupidity *)
-	If[dims === {}, elems = Map[SowInsertDim[#, 1]&, elems]];
-	shape = Join[If[timewise, {len, -1}, {-1, len}], dims];
-	cat = SowNode["Concat", elems, "num_args" -> len, "dim" -> If[timewise, 0, 1]];
-	SowNode["Reshape", cat, "shape" -> writeIntList[shape]]
+	axis = If[timewise, 0, 1];
+	elems = SowInsertDim[#, axis]& /@ elems;
+	SowNode["concat", elems, "num_args" -> len, "dim" -> axis]
 ];
 
 SowPack[__] := $Unreachable;
 
 PackageScope["SowUnpack"]
 SowUnpack[node_, numOut_, axis_] := Scope[
-	out = SowNode["SliceChannel", node, "axis" -> axis, "num_outputs" -> numOut, "squeeze_axis" -> "true"];
+	out = SowNode["split", node, "axis" -> axis, "num_outputs" -> numOut, "squeeze_axis" -> "true"];
 	out[[2]] = Range[numOut] - 1;
 	Thread[out]
 ]
@@ -181,12 +219,29 @@ PackageScope["SowFlatMean"]
 (* sums away everything but the 0th axis, assumed to be batchwise *)
 SowFlatMean[node_, keepAxis_ : 0] := SowNode["mean", node, "axis" -> keepAxis, "keepdims" -> False, "exclude" -> True];
 
+PackageScope["SowFlatProduct"]
+(* multiplies away everything but the 0th axis, assumed to be batchwise *)
+SowFlatProduct[node_, keepAxis_ : 0] := SowNode["prod", node, "axis" -> keepAxis, "keepdims" -> False, "exclude" -> True];
+
+PackageScope["SowFlatMax"]
+(* maximums away everything but the 0th axis, assumed to be batchwise *)
+SowFlatMax[node_, keepAxis_ : 0] := SowNode["max", node, "axis" -> keepAxis, "keepdims" -> False, "exclude" -> True];
 
 PackageScope["SowTimewiseMean"]
 (* sums away the 0th axis, assumed to be timewise *)
-SowTimewiseMean[in_, lnode_MXNode, _] := SowDivide[SowSumAxis[SowSeqMask[in, lnode], 0], lnode];
-SowTimewiseMean[in_, None, maxlen_] := SowDivideScalar[SowSumAxis[in, 0], maxlen];
+SowTimewiseMean[in_, lnode_MXNode] := SowDivide[SowSumAxis[SowSeqMask[in, lnode], 0], lnode];
 
+PackageScope["SowTimewiseSum"]
+(* sums away the 0th axis, assumed to be timewise *)
+SowTimewiseSum[in_, lnode_MXNode] := SowSumAxis[SowSeqMask[in, lnode], 0];
+
+PackageScope["SowTimewiseProduct"]
+(* multiplies away the 0th axis, assumed to be timewise *)
+SowTimewiseProduct[in_, lnode_MXNode] := SowProdAxis[SowSeqMask[in, lnode, 1], 0];
+
+PackageScope["SowTimewiseMax"]
+(* maximums away the 0th axis, assumed to be timewise *)
+SowTimewiseMax[in_, lnode_MXNode] := SowMaxAxis[SowSeqMask[in, lnode], 0];
 
 PackageScope["SowFlatVariance"]
 
@@ -203,60 +258,36 @@ SowFlatVariance[node_, dims_] := Scope[
 	var
 ];
 
-
 PackageScope["SowTake"]
 SowTake[node_, {a_, b_}, axis_] := SowNode["slice_axis", node, "axis" -> axis, "begin" -> a, "end" -> b];
+SowTake[node_, ind_, axis_] := SowNode["take", {node, ind}, "axis" -> axis];
 
 PackageScope["SowSeqMask"]
 PackageScope["SowSeqMaskBatchwise"]
 
 (* see the comment LayerTests.m about testing of layers that employ SowSeqMask *)
-SowSeqMask[twise_, lnode_, mask_ : "0."] := SowNode["SequenceMask", {twise, lnode}, "use_sequence_length" -> "true", "value" -> mask];
-SowSeqMaskBatchwise[bwise_, lnode_, mask_ : "0."] := SowNode["SequenceMask", {bwise, lnode}, "use_sequence_length" -> "true", "value" -> mask, "axis" -> 1];
-
+SowSeqMask[twise_, lnode_, mask_ : "0.", axis_ : 0] := SowNode["SequenceMask", {twise, lnode}, "use_sequence_length" -> "true", "value" -> mask, "axis" -> axis];
+SowSeqMaskBatchwise[bwise_, lnode_, mask_ : "0."] := SowSeqMask[bwise, lnode, mask, 1];
+(* ^ TODO: rename SeqSeqMask to Timewise, and make SeqSeqMaskBatchwise into SeqSeqMask *)
 
 PackageScope["SowSeqReverse"]
 SowSeqReverse[in_, lnode_] := SowNode["SequenceReverse", {in, lnode}, "use_sequence_length" -> "true"];
 
-
 PackageScope["SowInsertDim"]
+PackageScope["SowInsertDimList"]
 SowInsertDim[in_, axis_] := SowNode["expand_dims", in, "axis" -> axis];
+SowInsertDimList[in_, axes_List] := Fold[SowInsertDim, in, axes];
 
-PackageScope["FCGate"]
-FCGate[dropfn_, weight_, bias_] := Function[fcin, SowFC[dropfn[fcin], weight, bias]];
-
-PackageScope["SowBroadcastAt"]
-SowBroadcastAt[in_, axis_, len_] :=
-	SowNode[
-		"broadcast_axis",
-		SowNode["expand_dims", in, "axis" -> axis],
-		"axis" -> axis, "size" -> len
-	];
-
-PackageScope["SowBroadcastUp"]
-SowBroadcastUp[in_, odim_, idim_] := Scope[
-	newrank = Length[odim] - Length[idim];
-	If[newrank === 0, Return[in]];
-	newdims = Take[odim, newrank];
-	expanded = SowNode["Reshape", in, "shape" -> Join[{0}, 1 + newdims * 0, idim]];
-	SowNode["broadcast_axis", expanded, "size" -> newdims, "axis" -> Range[newrank]]
-];
-
-(*
-(* this is how this should be implemented, unfortunately this fails inference
-because who-knows *)
-
-SowBroadcastUp[in_, 0] := in;
-SowBroadcastUp[in_, newrank_] := Scope[
-	Do[in = SowNode["expand_dims", in, "axis" -> "1"], newrank];
-	SowNode["broadcast_axis", in]
-];
-*)
+PackageScope["SowSqueeze"]
+SowSqueeze[in_, axis_] := SowNode["squeeze", in, "axis" -> ToList[axis]];
 
 PackageScope["SowUniformRandom"]
 
-SowUniformRandom[shape_List] :=
-	SowSourceFixup[SowNode["uniform", {}, "low" -> "0", "high" -> "1"], shape];
+SowUniformRandom[shape_List, precision_] :=
+	SowSourceFixup[
+		SowNode["random_uniform", {}, "low" -> "0", "high" -> "1", "dtype" -> ToMXNetDataTypeName @ ToDataTypeCode[precision]],
+		shape
+	];
 
 (* Debugging ops *)
 
@@ -265,7 +296,6 @@ PackageScope["ForceNode"]
 KillNode[a_] := SowTimesScalar[a, "0.0"];
 ForceNode[r_][a_] := SowPlusScalar[SowTimesScalar[a, "0.0"], r];
 
-
 PackageScope["SowSwitch"]
 SowSwitch[a_, thresh_, b_, c_] := Scope[
 	above = SowTimesScalar[SowPlusScalar[SowNode["sign", SowMinusScalar[a, thresh]], 1], 0.5];
@@ -273,29 +303,23 @@ SowSwitch[a_, thresh_, b_, c_] := Scope[
 	SowPlus[SowHad[b, below], SowHad[c, above]]
 ]
 
-
 PackageScope["SowJoin"]
 
 SowJoin[args___, n_Integer] := SowNode["concat", {args}, "num_args" -> Length[{args}], "dim" -> n]
 
-
 PackageScope["NthOutput"]
 NthOutput[mx_MXNode, n_] := ReplacePart[mx, 2 -> n];
-
 
 PackageScope["DropInitialUnitDim"]
 
 DropInitialUnitDim[in_] :=
-	SowNode["Reshape", in, "shape" -> {-3, -2}];
-
+	SowNode["reshape", in, "shape" -> {-3, -2}];
 
 PackageScope["SowAppend"]
 SowAppend[in_, append_] := SowJoin[in, SowInsertDim[append, 1], 1];
 
-
 PackageScope["SowPrepend"]
 SowPrepend[in_, prepend_] := SowJoin[SowInsertDim[prepend, 1], in, 1];
-
 
 PackageScope["SowTransposedConvolutionOrPooling"]
 
@@ -310,54 +334,88 @@ SowTransposedConvolutionOrPooling[2, input_, other___] :=
 SowTransposedConvolutionOrPooling[3, input_, other___] :=
 	SowTranspose[SowCurrentNode[{SowTranspose[input, {0, 4, 1, 2, 3}], other}], {0, 2, 3, 4, 1}];
 
-
 PackageScope["SowBlockGrad"]
 
 SowBlockGrad[node_] := SowNode["BlockGrad", node];
 
-
-PackageScope["SowPad1"]
-
-(* pads on the first dim, working around crappy limitation of pad layer in 10001 *)
-SowPad1[input_, dims_, l_, r_] := Scope[
-	raised = SowInsertDim[input, 1];
-	padspec = Join[{0, 0, 0, 0, l, r}, Table[0, (dims - 1) * 2]];
-	padded = SowNode["pad", raised, "pad_width" -> padspec, "mode" -> "constant", "constant_value" -> "0"];
-	SowNode["Reshape", padded, "shape" -> {0, -3, -2}]
-];
-
-
 PackageScope["SowRNNNode"]
 
 SowRNNNode[type_String, {len_, stateSize_Integer}, timewise_, gluedArray_, initialState_] := Scope[
-	If[$GPUMode,
-		res = SowNode[
-			"RNN",
-			ToList[timewise, gluedArray, initialState /. s_MXNode :> SowInsertDim[s, 0]],
-			"state_size" -> stateSize,
-			"num_layers" -> 1,
-			"mode" -> type,
-			"state_outputs" -> ListQ[initialState] (* <- for lstm, emit cellstate *)
-		];
-		out = ToMetaNode[res, {len, stateSize}, True];
-		finalState = SowMetaLast[out];
-		If[ListQ[initialState], finalState = {finalState, NthOutput[res, 2]}];
-		{out, finalState}
+	res = SowNode[
+		"RNN",
+		ToList[timewise, gluedArray, initialState /. s_MXNode :> SowInsertDim[s, 0]],
+		"state_size" -> stateSize,
+		"num_layers" -> 1,
+		"mode" -> type,
+		"state_outputs" -> ListQ[initialState] (* <- for lstm, emit cellstate *)
+	];
+	out = ToMetaNode[res, len, True];
+	finalState = SowMetaLast[out];
+	If[ListQ[initialState],
+		(* Here happens https://bugs.wolfram.com/show?number=348910
+			We lost the intermediate cell states
+		*)
+		cellState = NthOutput[res, 2];
+		cellState = SowSqueeze[cellState, 0];
+		{out, finalState, cellState}
 		,
-	(* the code below is nonsense, but allows us to have a working plan on CPU via the
-	$ForceDummyRNNNode flag. This is for debugging things other than outputs, e.g. checking
-	that array gluing is working well with other features *)
-		summedArrays = Apply[SowPlus, SowNode["mean", #]& /@ ToList[gluedArray, initialState]];
-		(* ^ we need the output to depend somehow on the initial states and the glued arrays*)
-		res = SowNode["mean", timewise, "axis" -> {2}, "keepdims" -> True];
-		(* ^ sum away the input width *)
-		res = SowNode["broadcast_mul", {res, summedArrays}];
-		(* ^ mix in the scalar derived from initial states and glued array *)
-		res = SowNode["broadcast_axis", SowTanh[res], "axis" -> {2}, "size" -> {stateSize}];
-		(* ^ make the output the right shape *)
-		out = ToMetaNode[res, {len, stateSize}, True];
-		finalState = SowMetaLast[out];
-		If[ListQ[initialState], finalState = {finalState, finalState}];
 		{out, finalState}
 	]
+];
+
+PackageScope["SowBroadcastAgainst"]
+
+SetUsage @ "
+SowBroadcastAgainst[input$, {d$1,d$2,$$}, ref$] adds extra dimensions to input$ at positions d$i, copying \
+them from the corresponding positions in the shape of ref$."
+
+SowBroadcastAgainst[in_, {}, _] := in;
+
+SowBroadcastAgainst[in_, brank_, reference_] :=
+	SowNode["broadcast_like", {
+		SowInsertDimList[in, CTable[Min @ brank, Length[brank]]],
+		reference},
+		"lhs_axes" -> brank,
+		"rhs_axes" -> brank
+	];
+
+PackageScope["SowNodeLength"]
+
+SetUsage @ "
+SowNodeLength[node$, precision$] obtains the run-time length of a node as another node of dimensions (1), with a given precision."
+
+SowNodeLength[node_, precision_] := Scope[
+	dims = SowNode["shape_array", node];
+	len = SowNode["slice", dims, "begin" -> "(1,)", "end" -> "(2,)"];
+	(* TODO: we should check that the output type of slice (int32/int64) is not already of the requested precision *)
+	SowNode["cast", len, "dtype" -> ToMXNetDataTypeName @ ToDataTypeCode[precision]]
+];
+
+PackageScope["SowAnd"]
+SowAnd[a_, b_] := SowNode["broadcast_logical_and", {a, b}];
+
+PackageScope["SowOr"]
+SowOr[a_, b_] := SowNode["broadcast_logical_or", {a, b}];
+
+PackageScope["SowNot"]
+SowNot[a_] := SowNode["logical_not", {a}];
+
+PackageScope["SowL1Norm"]
+PackageScope["SowL2Norm"]
+
+SowL1Norm[in_] := SowNode["norm", SowFlatten @ in, "ord" -> 1, "axis" -> 1];
+SowL2Norm[in_] := SowNode["norm", SowFlatten @ in, "ord" -> 2, "axis" -> 1];
+
+PackageScope["SowOneHot"]
+SowOneHot[in_, size_] := SowNode["one_hot", in, "depth" -> size, "dtype" -> $DTypeMXName];
+
+PackageScope["SowGEMM2"]
+SowGEMM2[a_, b_, transA_ : False, transB_ : False, alpha_ : 1] := If[
+	$TMode,
+	(* We disable linalg_gemm2 for training because it shows weird convergence behavior
+		TODO. check this in the future (Test/Training/CopyNet)
+		https://bugs.wolfram.com/show?number=369862
+	*)
+	SowNode["batch_dot", {a, b}, "transpose_a" -> transA, "transpose_b" -> transB],
+	SowNode["linalg_gemm2", {a, b}, "transpose_a" -> transA, "transpose_b" -> transB, "alpha" -> alpha]
 ];
